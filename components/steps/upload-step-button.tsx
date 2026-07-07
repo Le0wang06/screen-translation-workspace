@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -11,49 +11,89 @@ type UploadStepButtonProps = {
   flowId: string;
 };
 
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  return Boolean(
+    target.closest('input, textarea, select, [contenteditable="true"]'),
+  );
+}
+
+function imageFromClipboard(clipboardData: DataTransfer | null) {
+  if (!clipboardData) return null;
+
+  for (const item of clipboardData.items) {
+    if (item.type.startsWith("image/")) {
+      return item.getAsFile();
+    }
+  }
+
+  return null;
+}
+
 export function UploadStepButton({ flowId }: UploadStepButtonProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function uploadFile(file: File) {
-    setPending(true);
-    setError(null);
+  const uploadFile = useCallback(
+    async (file: File) => {
+      setPending(true);
+      setError(null);
 
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
 
-      const response = await fetch(`/api/flows/${flowId}/steps`, {
-        method: "POST",
-        body: formData,
-      });
+        const response = await fetch(`/api/flows/${flowId}/steps`, {
+          method: "POST",
+          body: formData,
+        });
 
-      const payload = (await response.json()) as {
-        error?: string;
-        step?: { id: string };
-      };
+        const payload = (await response.json()) as {
+          error?: string;
+          step?: { id: string };
+        };
 
-      if (!response.ok) {
-        setError(payload.error ?? "Failed to upload screenshot.");
-        return;
+        if (!response.ok) {
+          setError(payload.error ?? "Failed to upload screenshot.");
+          return;
+        }
+
+        router.refresh();
+
+        if (payload.step?.id) {
+          router.push(`/steps/${payload.step.id}`);
+        }
+      } catch {
+        setError("Failed to upload screenshot.");
+      } finally {
+        setPending(false);
+        if (inputRef.current) {
+          inputRef.current.value = "";
+        }
       }
+    },
+    [flowId, router],
+  );
 
-      router.refresh();
+  const handlePaste = useCallback(
+    async (event: ClipboardEvent) => {
+      if (pending || isEditableTarget(event.target)) return;
 
-      if (payload.step?.id) {
-        router.push(`/steps/${payload.step.id}`);
-      }
-    } catch {
-      setError("Failed to upload screenshot.");
-    } finally {
-      setPending(false);
-      if (inputRef.current) {
-        inputRef.current.value = "";
-      }
-    }
-  }
+      const file = imageFromClipboard(event.clipboardData);
+      if (!file) return;
+
+      event.preventDefault();
+      await uploadFile(file);
+    },
+    [pending, uploadFile],
+  );
+
+  useEffect(() => {
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [handlePaste]);
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -62,24 +102,8 @@ export function UploadStepButton({ flowId }: UploadStepButtonProps) {
     }
   }
 
-  async function handlePaste(event: React.ClipboardEvent) {
-    const items = event.clipboardData?.items;
-    if (!items) return;
-
-    for (const item of items) {
-      if (item.type.startsWith("image/")) {
-        const file = item.getAsFile();
-        if (file) {
-          event.preventDefault();
-          await uploadFile(file);
-          return;
-        }
-      }
-    }
-  }
-
   return (
-    <div className="flex flex-col gap-2" onPaste={handlePaste}>
+    <div className="flex flex-col gap-2">
       <input
         ref={inputRef}
         type="file"
@@ -98,7 +122,9 @@ export function UploadStepButton({ flowId }: UploadStepButtonProps) {
         {pending ? "Uploading…" : "Upload screenshot"}
       </Button>
       <p className="text-xs text-muted-foreground">
-        Or paste an image from your clipboard.
+        Or press <kbd className="rounded border px-1">⌘V</kbd> /{" "}
+        <kbd className="rounded border px-1">Ctrl+V</kbd> anywhere on this page
+        after copying a screenshot.
       </p>
       {error ? <FieldError errors={[{ message: error }]} /> : null}
     </div>
