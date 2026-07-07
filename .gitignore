@@ -1,15 +1,20 @@
 # dependencies
-node_modules/
-.pnp
-.pnp.js
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
 # next.js
-.next/
-out/
+/.next/
+/out/
 
 # production
-build/
-dist/
+/build
+/dist
 
 # env & secrets
 .env
@@ -27,7 +32,7 @@ yarn-error.log*
 next-env.d.ts
 
 # testing
-coverage/
+/coverage
 
 # misc
 .DS_Store
