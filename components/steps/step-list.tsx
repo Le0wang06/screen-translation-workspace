@@ -1,5 +1,4 @@
-import { Upload } from "lucide-react";
-
+import { DropZoneCard } from "@/components/steps/drop-zone-card";
 import { StepFilmstrip } from "@/components/steps/step-filmstrip";
 import { UploadStepButton } from "@/components/steps/upload-step-button";
 import {
@@ -20,17 +19,11 @@ export function StepList({ steps, thumbnailUrls }: StepListProps) {
   if (steps.length === 0) {
     return (
       <Card className="border-border/70 shadow-sm">
-        <CardContent className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-          <div className="flex size-14 items-center justify-center rounded-2xl border border-dashed border-border bg-muted/30">
-            <Upload className="size-6 text-muted-foreground" aria-hidden />
+        <CardContent className="flex flex-col gap-4 p-4 sm:p-6">
+          <DropZoneCard />
+          <div className="flex justify-center">
+            <UploadStepButton />
           </div>
-          <div className="max-w-sm space-y-1">
-            <p className="text-sm font-medium">No steps yet</p>
-            <p className="text-sm text-muted-foreground text-pretty">
-              Upload your first screenshot to generate a localized screen.
-            </p>
-          </div>
-          <UploadStepButton />
         </CardContent>
       </Card>
     );
@@ -40,16 +33,17 @@ export function StepList({ steps, thumbnailUrls }: StepListProps) {
     <Card className="border-border/70 shadow-sm">
       <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-border/60 bg-muted/20">
         <div className="space-y-1">
-          <CardTitle className="text-base">Steps</CardTitle>
+          <CardTitle className="text-base">Screens</CardTitle>
           <CardDescription>
-            {steps.length} step{steps.length === 1 ? "" : "s"} — scroll sideways
+            {steps.length} screen{steps.length === 1 ? "" : "s"} — scroll sideways
             to browse, click to open
           </CardDescription>
         </div>
         <UploadStepButton />
       </CardHeader>
-      <CardContent className="p-4 sm:p-6">
+      <CardContent className="flex flex-col gap-4 p-4 sm:p-6">
         <StepFilmstrip steps={steps} thumbnailUrls={thumbnailUrls} />
+        <DropZoneCard compact />
       </CardContent>
     </Card>
   );

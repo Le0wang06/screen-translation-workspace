@@ -33,7 +33,7 @@ export async function getOwnedStep(
   const { data, error } = await supabase
     .from("steps")
     .select(
-      "*, flows!inner(id, name, project_id), projects!inner(id, name, owner_id, target_language)",
+      "*, flows!inner(id, name, project_id), projects!inner(id, name, owner_id, source_language, target_language)",
     )
     .eq("id", stepId)
     .eq("projects.owner_id", userId)

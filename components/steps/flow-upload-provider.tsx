@@ -14,6 +14,7 @@ import {
   imageFromClipboardApi,
   imageFromDataTransfer,
 } from "@/components/steps/clipboard-image";
+import { UploadOverlay } from "@/components/steps/upload-overlay";
 import { cn } from "@/lib/utils";
 
 type FlowUploadContextValue = {
@@ -204,11 +205,25 @@ export function FlowUploadProvider({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={cn(
-          "flex flex-col gap-8 rounded-xl transition-colors",
+          "relative flex flex-col gap-8 rounded-xl transition-colors",
           isDragging && "bg-muted/40 ring-2 ring-primary/30 ring-offset-2",
         )}
       >
+        {isDragging ? (
+          <div
+            className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center rounded-xl bg-primary/5 backdrop-blur-[1px]"
+            aria-hidden
+          >
+            <div className="rounded-2xl border border-primary/30 bg-background/95 px-6 py-4 text-center shadow-lg">
+              <p className="text-sm font-medium">Drop to add screenshot</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Release to upload this screen to the flow
+              </p>
+            </div>
+          </div>
+        ) : null}
         {children}
+        <UploadOverlay open={pending} />
       </div>
     </FlowUploadContext.Provider>
   );

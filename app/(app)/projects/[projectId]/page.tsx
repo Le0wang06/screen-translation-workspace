@@ -55,8 +55,8 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           ) : null}
         </div>
         <p className="max-w-2xl text-muted-foreground text-pretty">
-          Flows are ordered walkthroughs inside this project. Create one, then
-          upload screenshots as steps on Day 2.
+          Flows are ordered walkthroughs. Create one, then upload screenshots to
+          generate translated screens.
         </p>
       </section>
 

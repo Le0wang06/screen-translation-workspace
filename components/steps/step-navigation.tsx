@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
 import { StepFilmstrip } from "@/components/steps/step-filmstrip";
+import { useFlowUpload } from "@/components/steps/flow-upload-provider";
 import { Button, buttonVariants } from "@/components/ui/button";
 import type { Step } from "@/lib/db/types";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ export function StepNavigation({
   thumbnailUrls,
 }: StepNavigationProps) {
   const router = useRouter();
+  const { pickFile, pending } = useFlowUpload();
   const currentIndex = steps.findIndex((step) => step.id === currentStepId);
   const prevStep = currentIndex > 0 ? steps[currentIndex - 1] : null;
   const nextStep =
@@ -53,15 +55,44 @@ export function StepNavigation({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [nextStep, prevStep, router]);
 
-  if (steps.length <= 1) return null;
+  if (steps.length <= 1) {
+    return (
+      <section className="flex flex-col gap-3 rounded-xl border border-border/70 bg-muted/15 p-3 sm:p-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">First screen in this flow</p>
+          <Button
+            type="button"
+            size="sm"
+            className="gap-1.5"
+            disabled={pending}
+            onClick={pickFile}
+          >
+            <Plus className="size-4" aria-hidden />
+            Add screen
+          </Button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="flex flex-col gap-3 rounded-xl border border-border/70 bg-muted/15 p-3 sm:p-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm font-medium tabular-nums">
-          Step {currentIndex + 1} of {steps.length}
+          Screen {currentIndex + 1} of {steps.length}
         </p>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="gap-1.5"
+            disabled={pending}
+            onClick={pickFile}
+          >
+            <Plus className="size-4" aria-hidden />
+            Add screen
+          </Button>
           {prevStep ? (
             <Link
               href={`/steps/${prevStep.id}`}
@@ -100,9 +131,10 @@ export function StepNavigation({
       />
 
       <p className="text-xs text-muted-foreground">
-        Scroll the strip or use{" "}
+        Scroll the strip, use{" "}
         <kbd className="rounded border px-1">←</kbd>{" "}
-        <kbd className="rounded border px-1">→</kbd> to move between steps.
+        <kbd className="rounded border px-1">→</kbd>, or add another screen
+        without leaving this page.
       </p>
     </section>
   );

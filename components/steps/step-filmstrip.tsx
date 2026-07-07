@@ -69,7 +69,7 @@ export function StepFilmstrip({
                 {thumbnailUrl ? (
                   <Image
                     src={thumbnailUrl}
-                    alt=""
+                    alt={step.title || `Screen ${index + 1}`}
                     fill
                     className="object-cover object-top"
                     sizes="160px"
@@ -80,6 +80,13 @@ export function StepFilmstrip({
                     —
                   </div>
                 )}
+                {step.status === "processing" ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-background/55 backdrop-blur-[1px]">
+                    <span className="rounded-full bg-background/90 px-2 py-1 text-[10px] font-medium text-primary shadow-sm">
+                      Processing
+                    </span>
+                  </div>
+                ) : null}
                 <span className="absolute top-1.5 left-1.5 rounded-md bg-background/90 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums shadow-sm">
                   {index + 1}
                 </span>

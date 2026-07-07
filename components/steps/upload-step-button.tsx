@@ -41,7 +41,7 @@ export function UploadStepButton() {
           onClick={pickFile}
         >
           <Upload className="size-4" aria-hidden />
-          {pending ? "Uploading…" : "Upload screenshot"}
+          {pending ? "Uploading…" : "Add screenshot"}
         </Button>
         <Button
           type="button"

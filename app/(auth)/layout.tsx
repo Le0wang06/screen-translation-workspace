@@ -21,7 +21,7 @@ export default function AuthLayout({
         </div>
         <div className="leading-tight">
           <p className="text-sm font-semibold tracking-tight">
-            Screen Translation
+            Screen Localization
           </p>
           <p className="text-xs text-muted-foreground">Workspace</p>
         </div>
