@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { VariantProps } from "class-variance-authority";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +21,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 const TARGET_LANGUAGES = [
   { value: "en", label: "English" },
@@ -32,10 +34,20 @@ const TARGET_LANGUAGES = [
 ] as const;
 
 type CreateProjectDialogProps = {
-  trigger?: React.ReactElement;
+  triggerLabel?: string;
+  triggerVariant?: VariantProps<typeof buttonVariants>["variant"];
+  triggerSize?: VariantProps<typeof buttonVariants>["size"];
+  triggerClassName?: string;
+  triggerIcon?: React.ReactNode;
 };
 
-export function CreateProjectDialog({ trigger }: CreateProjectDialogProps) {
+export function CreateProjectDialog({
+  triggerLabel = "New project",
+  triggerVariant = "default",
+  triggerSize = "sm",
+  triggerClassName,
+  triggerIcon,
+}: CreateProjectDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -100,12 +112,15 @@ export function CreateProjectDialog({ trigger }: CreateProjectDialogProps) {
       }}
     >
       <DialogTrigger
-        render={
-          trigger ?? (
-            <Button size="sm">New project</Button>
-          )
-        }
-      />
+        className={cn(
+          buttonVariants({ variant: triggerVariant, size: triggerSize }),
+          triggerIcon && "gap-2",
+          triggerClassName,
+        )}
+      >
+        {triggerLabel}
+        {triggerIcon}
+      </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create project</DialogTitle>
@@ -127,7 +142,8 @@ export function CreateProjectDialog({ trigger }: CreateProjectDialogProps) {
             </Field>
             <Field>
               <FieldLabel htmlFor="source-language">
-                Source language <span className="text-muted-foreground">(optional)</span>
+                Source language{" "}
+                <span className="text-muted-foreground">(optional)</span>
               </FieldLabel>
               <Input
                 id="source-language"

@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { VariantProps } from "class-variance-authority";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -20,13 +21,23 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 type CreateFlowDialogProps = {
   projectId: string;
-  trigger?: React.ReactElement;
+  triggerLabel?: string;
+  triggerVariant?: VariantProps<typeof buttonVariants>["variant"];
+  triggerSize?: VariantProps<typeof buttonVariants>["size"];
+  triggerClassName?: string;
 };
 
-export function CreateFlowDialog({ projectId, trigger }: CreateFlowDialogProps) {
+export function CreateFlowDialog({
+  projectId,
+  triggerLabel = "New flow",
+  triggerVariant = "default",
+  triggerSize = "sm",
+  triggerClassName,
+}: CreateFlowDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -83,8 +94,13 @@ export function CreateFlowDialog({ projectId, trigger }: CreateFlowDialogProps) 
       }}
     >
       <DialogTrigger
-        render={trigger ?? <Button size="sm">New flow</Button>}
-      />
+        className={cn(
+          buttonVariants({ variant: triggerVariant, size: triggerSize }),
+          triggerClassName,
+        )}
+      >
+        {triggerLabel}
+      </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create flow</DialogTitle>

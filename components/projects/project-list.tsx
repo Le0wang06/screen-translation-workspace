@@ -3,7 +3,6 @@ import { ArrowRight, FolderKanban } from "lucide-react";
 
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -40,12 +39,9 @@ export function ProjectList({ projects }: ProjectListProps) {
             </p>
           </div>
           <CreateProjectDialog
-            trigger={
-              <Button className="gap-2">
-                Create project
-                <ArrowRight className="size-4" aria-hidden />
-              </Button>
-            }
+            triggerLabel="Create project"
+            triggerSize="default"
+            triggerIcon={<ArrowRight className="size-4" aria-hidden />}
           />
         </CardContent>
       </Card>

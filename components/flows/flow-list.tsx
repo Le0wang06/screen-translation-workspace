@@ -2,7 +2,6 @@ import Link from "next/link";
 import { ArrowRight, Layers3 } from "lucide-react";
 
 import { CreateFlowDialog } from "@/components/flows/create-flow-dialog";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -41,7 +40,8 @@ export function FlowList({ projectId, flows }: FlowListProps) {
           </div>
           <CreateFlowDialog
             projectId={projectId}
-            trigger={<Button>New flow</Button>}
+            triggerLabel="New flow"
+            triggerSize="default"
           />
         </CardContent>
       </Card>
