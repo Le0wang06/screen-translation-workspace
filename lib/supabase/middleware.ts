@@ -40,6 +40,10 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (!user && !isPublicRoute(pathname)) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     if (pathname !== "/") {
