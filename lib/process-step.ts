@@ -2,6 +2,17 @@ import OpenAI from "openai";
 
 import type { requireUser } from "@/lib/api/helpers";
 import {
+  PLACEHOLDER_STEP_SUMMARY,
+  PLACEHOLDER_STEP_TITLE,
+  PROCESS_IMAGE_OUTPUT_FORMAT,
+  PROCESS_IMAGE_TOOL,
+  PROCESS_STEP_RESPONSE_MODEL,
+} from "@/lib/process-step-config";
+import {
+  bufferToDataUrl,
+  prepareScreenshot,
+} from "@/lib/prepare-screenshot";
+import {
   localizedScreenshotStoragePath,
   parseScreenshotStoragePath,
   SCREENSHOTS_BUCKET,
@@ -39,33 +50,21 @@ function buildLocalizationPrompt(
   notes?: string | null,
 ) {
   const sourceHint = sourceLanguage
-    ? `The UI text is in ${sourceLanguage}.`
+    ? `Source UI language: ${sourceLanguage}.`
     : "Detect the source language from the screenshot.";
 
-  const notesHint = notes?.trim()
-    ? `\nAdditional reviewer instructions:\n${notes.trim()}\n`
-    : "";
+  const notesHint = notes?.trim() ? `\nReviewer notes: ${notes.trim()}` : "";
 
-  return `Recreate this product UI screenshot as a new image.
-
+  return `Edit this UI screenshot in place.
 ${sourceHint}
-Translate every visible UI label, button, heading, menu item, placeholder, and body text into ${targetLanguage}.
+Translate all visible UI text into natural ${targetLanguage}.
 ${notesHint}
-Requirements:
-- Keep the same layout, spacing, colors, icons, and overall design.
-- Only change readable UI copy into natural ${targetLanguage}.
-- Do not add watermarks, borders, or commentary.
-- Do not change logos or brand marks unless they contain translatable words.
-- Output one polished localized screenshot image.`;
+Keep layout, colors, icons, and spacing the same. Only change readable UI copy.`;
 }
 
 function buildMetadataPrompt(targetLanguage: string) {
-  return `Look at this product screenshot and return JSON only:
-{
-  "title": "short screen title in ${targetLanguage}",
-  "summary": "one sentence in English describing what the user is doing on this screen",
-  "source_language": "iso code"
-}`;
+  return `Return JSON only:
+{"title":"short screen title in ${targetLanguage}","summary":"one English sentence about what the user is doing","source_language":"iso code"}`;
 }
 
 function extractGeneratedImageBase64(
@@ -79,6 +78,14 @@ function extractGeneratedImageBase64(
   return null;
 }
 
+function localizedExtension() {
+  return PROCESS_IMAGE_OUTPUT_FORMAT === "jpeg" ? "jpg" : "png";
+}
+
+function localizedContentType() {
+  return PROCESS_IMAGE_OUTPUT_FORMAT === "jpeg" ? "image/jpeg" : "image/png";
+}
+
 async function generateLocalizedImage(
   openai: OpenAI,
   imageDataUrl: string,
@@ -87,7 +94,7 @@ async function generateLocalizedImage(
   notes?: string | null,
 ) {
   const response = await openai.responses.create({
-    model: "gpt-4o",
+    model: PROCESS_STEP_RESPONSE_MODEL,
     input: [
       {
         role: "user",
@@ -99,18 +106,12 @@ async function generateLocalizedImage(
           {
             type: "input_image",
             image_url: imageDataUrl,
-            detail: "high",
+            detail: "low",
           },
         ],
       },
     ],
-    tools: [
-      {
-        type: "image_generation",
-        action: "edit",
-        quality: "high",
-      },
-    ],
+    tools: [PROCESS_IMAGE_TOOL],
     tool_choice: { type: "image_generation" },
   });
 
@@ -137,7 +138,7 @@ async function extractStepMetadata(
           { type: "text", text: buildMetadataPrompt(targetLanguage) },
           {
             type: "image_url",
-            image_url: { url: imageDataUrl },
+            image_url: { url: imageDataUrl, detail: "low" },
           },
         ],
       },
@@ -156,8 +157,8 @@ async function extractStepMetadata(
   };
 
   return {
-    title: parsed.title?.trim() || "Localized screen",
-    summary: parsed.summary?.trim() || "Localized UI screenshot",
+    title: parsed.title?.trim() || PLACEHOLDER_STEP_TITLE,
+    summary: parsed.summary?.trim() || PLACEHOLDER_STEP_SUMMARY,
     source_language: parsed.source_language?.trim(),
   };
 }
@@ -174,36 +175,32 @@ export async function processStep(
     throw new Error(downloadError?.message ?? "Failed to download screenshot.");
   }
 
-  const arrayBuffer = await file.arrayBuffer();
-  const base64 = Buffer.from(arrayBuffer).toString("base64");
-  const mime = file.type || "image/png";
-  const imageDataUrl = `data:${mime};base64,${base64}`;
+  const prepared = await prepareScreenshot(await file.arrayBuffer());
+  const imageDataUrl = bufferToDataUrl(prepared.buffer, prepared.mime);
 
   const openai = getOpenAIClient();
-  const [localizedImageBase64, metadata] = await Promise.all([
-    generateLocalizedImage(
-      openai,
-      imageDataUrl,
-      input.sourceLanguage,
-      input.targetLanguage,
-      input.notes,
-    ),
-    extractStepMetadata(openai, imageDataUrl, input.targetLanguage),
-  ]);
+  const localizedImageBase64 = await generateLocalizedImage(
+    openai,
+    imageDataUrl,
+    input.sourceLanguage,
+    input.targetLanguage,
+    input.notes,
+  );
 
   const { projectId, flowId } = parseScreenshotStoragePath(input.imagePath);
+  const extension = localizedExtension();
   const translatedImagePath = localizedScreenshotStoragePath(
     projectId,
     flowId,
     input.stepId,
-    "png",
+    extension,
   );
 
   const localizedBuffer = Buffer.from(localizedImageBase64, "base64");
   const { error: uploadError } = await supabase.storage
     .from(SCREENSHOTS_BUCKET)
     .upload(translatedImagePath, localizedBuffer, {
-      contentType: "image/png",
+      contentType: localizedContentType(),
       upsert: true,
     });
 
@@ -211,21 +208,21 @@ export async function processStep(
     throw new Error(uploadError.message);
   }
 
-  const result: ProcessStepResult = {
-    title: metadata.title,
-    summary: metadata.summary,
-    source_language: metadata.source_language ?? input.sourceLanguage ?? undefined,
+  const interimResult: ProcessStepResult = {
+    title: PLACEHOLDER_STEP_TITLE,
+    summary: PLACEHOLDER_STEP_SUMMARY,
+    source_language: input.sourceLanguage ?? undefined,
     target_language: input.targetLanguage,
     translatedImagePath,
   };
 
-  const { error: stepError } = await supabase
+  const { error: interimUpdateError } = await supabase
     .from("steps")
     .update({
-      title: result.title,
-      summary: result.summary,
-      source_language: result.source_language ?? input.sourceLanguage ?? null,
-      target_language: result.target_language,
+      title: interimResult.title,
+      summary: interimResult.summary,
+      source_language: input.sourceLanguage ?? null,
+      target_language: input.targetLanguage,
       translated_image_url: translatedImagePath,
       status: "done",
       error_message: null,
@@ -233,11 +230,39 @@ export async function processStep(
     })
     .eq("id", input.stepId);
 
-  if (stepError) {
-    throw new Error(stepError.message);
+  if (interimUpdateError) {
+    throw new Error(interimUpdateError.message);
   }
 
-  return result;
+  try {
+    const metadata = await extractStepMetadata(
+      openai,
+      imageDataUrl,
+      input.targetLanguage,
+    );
+
+    const result: ProcessStepResult = {
+      title: metadata.title,
+      summary: metadata.summary,
+      source_language: metadata.source_language ?? input.sourceLanguage ?? undefined,
+      target_language: input.targetLanguage,
+      translatedImagePath,
+    };
+
+    await supabase
+      .from("steps")
+      .update({
+        title: result.title,
+        summary: result.summary,
+        source_language: result.source_language ?? input.sourceLanguage ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.stepId);
+
+    return result;
+  } catch {
+    return interimResult;
+  }
 }
 
 export async function markStepFailed(

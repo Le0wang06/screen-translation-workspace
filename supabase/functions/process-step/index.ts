@@ -9,45 +9,38 @@ type ProcessStepPayload = {
   notes?: string | null;
 };
 
+const RESPONSE_MODEL = Deno.env.get("PROCESS_STEP_RESPONSE_MODEL") ?? "gpt-4o-mini";
+const IMAGE_MODEL = Deno.env.get("PROCESS_IMAGE_MODEL") ?? "gpt-image-1-mini";
+const IMAGE_QUALITY = Deno.env.get("PROCESS_IMAGE_QUALITY") ?? "low";
+
 function buildLocalizationPrompt(
   sourceLanguage: string | null | undefined,
   targetLanguage: string,
   notes?: string | null,
 ) {
   const sourceHint = sourceLanguage
-    ? `The UI text is in ${sourceLanguage}.`
+    ? `Source UI language: ${sourceLanguage}.`
     : "Detect the source language from the screenshot.";
 
-  const notesHint = notes?.trim()
-    ? `\nAdditional reviewer instructions:\n${notes.trim()}\n`
-    : "";
+  const notesHint = notes?.trim() ? `\nReviewer notes: ${notes.trim()}` : "";
 
-  return `Recreate this product UI screenshot as a new image.
-
+  return `Edit this UI screenshot in place.
 ${sourceHint}
-Translate every visible UI label, button, heading, menu item, placeholder, and body text into ${targetLanguage}.
+Translate all visible UI text into natural ${targetLanguage}.
 ${notesHint}
-Requirements:
-- Keep the same layout, spacing, colors, icons, and overall design.
-- Only change readable UI copy into natural ${targetLanguage}.
-- Do not add watermarks, borders, or commentary.
-- Output one polished localized screenshot image.`;
+Keep layout, colors, icons, and spacing the same. Only change readable UI copy.`;
 }
 
 function buildMetadataPrompt(targetLanguage: string) {
-  return `Look at this product screenshot and return JSON only:
-{
-  "title": "short screen title in ${targetLanguage}",
-  "summary": "one sentence in English describing what the user is doing on this screen",
-  "source_language": "iso code"
-}`;
+  return `Return JSON only:
+{"title":"short screen title in ${targetLanguage}","summary":"one English sentence about what the user is doing","source_language":"iso code"}`;
 }
 
 function localizedPath(imagePath: string, stepId: string) {
   const parts = imagePath.split("/");
   const projectId = parts[0];
   const flowId = parts[1];
-  return `${projectId}/${flowId}/${stepId}-localized.png`;
+  return `${projectId}/${flowId}/${stepId}-localized.jpg`;
 }
 
 Deno.serve(async (request: Request) => {
@@ -103,7 +96,7 @@ Deno.serve(async (request: Request) => {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "gpt-4o",
+      model: RESPONSE_MODEL,
       input: [
         {
           role: "user",
@@ -116,11 +109,22 @@ Deno.serve(async (request: Request) => {
                 payload.notes,
               ),
             },
-            { type: "input_image", image_url: imageDataUrl, detail: "high" },
+            { type: "input_image", image_url: imageDataUrl, detail: "low" },
           ],
         },
       ],
-      tools: [{ type: "image_generation", action: "edit", quality: "high" }],
+      tools: [
+        {
+          type: "image_generation",
+          action: "edit",
+          model: IMAGE_MODEL,
+          quality: IMAGE_QUALITY,
+          output_format: "jpeg",
+          output_compression: 75,
+          moderation: "low",
+          input_fidelity: "low",
+        },
+      ],
       tool_choice: { type: "image_generation" },
     }),
   });
@@ -144,42 +148,6 @@ Deno.serve(async (request: Request) => {
       item.type === "image_generation_call" && item.result,
   )?.result as string | undefined;
 
-  const metadataResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${openaiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: buildMetadataPrompt(payload.targetLanguage) },
-            { type: "image_url", image_url: { url: imageDataUrl } },
-          ],
-        },
-      ],
-    }),
-  });
-
-  let title = "Localized screen";
-  let summary = "Localized UI screenshot";
-  let sourceLanguage = payload.sourceLanguage ?? null;
-
-  if (metadataResponse.ok) {
-    const metadataJson = await metadataResponse.json();
-    const content = metadataJson.choices?.[0]?.message?.content;
-    if (content) {
-      const parsed = JSON.parse(content);
-      title = parsed.title?.trim() || title;
-      summary = parsed.summary?.trim() || summary;
-      sourceLanguage = parsed.source_language?.trim() || sourceLanguage;
-    }
-  }
-
   if (!imageBase64) {
     await supabase
       .from("steps")
@@ -201,7 +169,7 @@ Deno.serve(async (request: Request) => {
   const { error: uploadError } = await supabase.storage
     .from("screenshots")
     .upload(translatedImagePath, binary, {
-      contentType: "image/png",
+      contentType: "image/jpeg",
       upsert: true,
     });
 
@@ -217,12 +185,12 @@ Deno.serve(async (request: Request) => {
     });
   }
 
-  const { error: updateError } = await supabase
+  const { error: interimUpdateError } = await supabase
     .from("steps")
     .update({
-      title,
-      summary,
-      source_language: sourceLanguage,
+      title: "Localized screen",
+      summary: "Localized UI screenshot",
+      source_language: payload.sourceLanguage ?? null,
       target_language: payload.targetLanguage,
       translated_image_url: translatedImagePath,
       status: "done",
@@ -231,11 +199,57 @@ Deno.serve(async (request: Request) => {
     })
     .eq("id", payload.stepId);
 
-  if (updateError) {
-    return new Response(JSON.stringify({ error: updateError.message }), {
+  if (interimUpdateError) {
+    return new Response(JSON.stringify({ error: interimUpdateError.message }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
+  }
+
+  try {
+    const metadataResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openaiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: buildMetadataPrompt(payload.targetLanguage) },
+              {
+                type: "image_url",
+                image_url: { url: imageDataUrl, detail: "low" },
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (metadataResponse.ok) {
+      const metadataJson = await metadataResponse.json();
+      const content = metadataJson.choices?.[0]?.message?.content;
+      if (content) {
+        const parsed = JSON.parse(content);
+        await supabase
+          .from("steps")
+          .update({
+            title: parsed.title?.trim() || "Localized screen",
+            summary: parsed.summary?.trim() || "Localized UI screenshot",
+            source_language:
+              parsed.source_language?.trim() || payload.sourceLanguage || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", payload.stepId);
+      }
+    }
+  } catch {
+    // Image is already saved; metadata can stay as placeholder.
   }
 
   return new Response(JSON.stringify({ ok: true }), {

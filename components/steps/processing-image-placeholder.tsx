@@ -40,7 +40,7 @@ export function ProcessingImagePlaceholder({
             {label}
           </p>
           <p className="max-w-xs text-xs text-muted-foreground text-pretty">
-            Usually 30–60 seconds. This page updates automatically when ready.
+            Usually 15–25 seconds. This page updates automatically when ready.
           </p>
         </div>
       </div>
