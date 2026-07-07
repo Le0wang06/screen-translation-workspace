@@ -4,7 +4,14 @@
  */
 import OpenAI from "openai";
 
-import { PROCESS_IMAGE_TOOL, PROCESS_STEP_RESPONSE_MODEL } from "../lib/process-step-config";
+import { resolveSourceImageFormat } from "../lib/image-format";
+import {
+  buildImageGenerationTool,
+  PROCESS_IMAGE_INPUT_DETAIL,
+  PROCESS_IMAGE_MODEL,
+  PROCESS_IMAGE_QUALITY,
+  PROCESS_STEP_RESPONSE_MODEL,
+} from "../lib/process-step-config";
 import { prepareScreenshot, bufferToDataUrl } from "../lib/prepare-screenshot";
 
 async function main() {
@@ -21,7 +28,14 @@ async function main() {
     throw new Error(`Fixture download failed (${response.status}).`);
   }
 
-  const prepared = await prepareScreenshot(await response.arrayBuffer());
+  const fixtureBytes = await response.arrayBuffer();
+  const sourceFormat = resolveSourceImageFormat("fixture.png", "image/png");
+  const prepared = await prepareScreenshot(
+    fixtureBytes,
+    sourceFormat.mime,
+    sourceFormat.openAiFormat,
+    sourceFormat.storageExtension,
+  );
   const imageDataUrl = bufferToDataUrl(prepared.buffer, prepared.mime);
 
   const openai = new OpenAI({ apiKey });
@@ -30,7 +44,7 @@ async function main() {
   await openai.models.list();
 
   console.log(
-    `[smoke] Fast pipeline: ${PROCESS_STEP_RESPONSE_MODEL} + ${PROCESS_IMAGE_TOOL.model} @ ${PROCESS_IMAGE_TOOL.quality}`,
+    `[smoke] Pipeline: ${PROCESS_STEP_RESPONSE_MODEL} + ${PROCESS_IMAGE_MODEL} @ ${PROCESS_IMAGE_QUALITY}, output ${prepared.openAiFormat}`,
   );
 
   const started = Date.now();
@@ -44,11 +58,11 @@ async function main() {
             type: "input_text",
             text: `Edit this UI screenshot in place. Translate all visible UI text into natural Spanish. Keep layout and design the same.`,
           },
-          { type: "input_image", image_url: imageDataUrl, detail: "low" },
+          { type: "input_image", image_url: imageDataUrl, detail: PROCESS_IMAGE_INPUT_DETAIL },
         ],
       },
     ],
-    tools: [PROCESS_IMAGE_TOOL],
+    tools: [buildImageGenerationTool(prepared.openAiFormat)],
     tool_choice: { type: "image_generation" },
   });
 
@@ -92,6 +106,7 @@ async function main() {
   const metadataMs = Date.now() - metadataStarted;
 
   console.log("\n✅ OpenAI fast pipeline smoke test passed");
+  console.log(`   Format:    ${prepared.openAiFormat} → .${prepared.storageExtension}`);
   console.log(`   Image:     ${(imageMs / 1000).toFixed(1)}s`);
   console.log(`   Metadata:  ${(metadataMs / 1000).toFixed(1)}s`);
   console.log(`   Total:     ${(totalMs / 1000).toFixed(1)}s`);

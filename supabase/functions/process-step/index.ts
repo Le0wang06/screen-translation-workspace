@@ -10,8 +10,57 @@ type ProcessStepPayload = {
 };
 
 const RESPONSE_MODEL = Deno.env.get("PROCESS_STEP_RESPONSE_MODEL") ?? "gpt-4o-mini";
-const IMAGE_MODEL = Deno.env.get("PROCESS_IMAGE_MODEL") ?? "gpt-image-1-mini";
-const IMAGE_QUALITY = Deno.env.get("PROCESS_IMAGE_QUALITY") ?? "low";
+const IMAGE_MODEL = Deno.env.get("PROCESS_IMAGE_MODEL") ?? "gpt-image-1";
+const IMAGE_QUALITY = Deno.env.get("PROCESS_IMAGE_QUALITY") ?? "medium";
+const IMAGE_FORMAT_OVERRIDE = Deno.env.get("PROCESS_IMAGE_OUTPUT_FORMAT");
+const IMAGE_COMPRESSION = Number(Deno.env.get("PROCESS_IMAGE_OUTPUT_COMPRESSION") ?? "88");
+
+type OutputFormat = "png" | "jpeg" | "webp";
+
+function extensionFromPath(path: string) {
+  const match = path.match(/\.([^.]+)$/i);
+  return match?.[1]?.toLowerCase() ?? "png";
+}
+
+function mimeFromExtension(extension: string) {
+  switch (extension.replace(/^\./, "").toLowerCase()) {
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "webp":
+      return "image/webp";
+    default:
+      return "image/png";
+  }
+}
+
+function openAiFormatFromMime(mime: string): OutputFormat {
+  switch (mime) {
+    case "image/jpeg":
+      return "jpeg";
+    case "image/webp":
+      return "webp";
+    default:
+      return "png";
+  }
+}
+
+function resolveSourceImageFormat(imagePath: string, fileType?: string | null) {
+  const pathExtension = extensionFromPath(imagePath);
+  const mime = fileType?.startsWith("image/") ? fileType : mimeFromExtension(pathExtension);
+  const openAiFormat = openAiFormatFromMime(mime);
+  const outputFormat = (IMAGE_FORMAT_OVERRIDE as OutputFormat | undefined) ?? openAiFormat;
+  const storageExtension =
+    outputFormat === "jpeg" ? "jpg" : outputFormat === "webp" ? "webp" : "png";
+
+  return { mime, outputFormat, storageExtension };
+}
+
+function contentTypeForFormat(format: OutputFormat) {
+  if (format === "jpeg") return "image/jpeg";
+  if (format === "webp") return "image/webp";
+  return "image/png";
+}
 
 function buildLocalizationPrompt(
   sourceLanguage: string | null | undefined,
@@ -36,11 +85,11 @@ function buildMetadataPrompt(targetLanguage: string) {
 {"title":"short screen title in ${targetLanguage}","summary":"one English sentence about what the user is doing","source_language":"iso code"}`;
 }
 
-function localizedPath(imagePath: string, stepId: string) {
+function localizedPath(imagePath: string, stepId: string, storageExtension: string) {
   const parts = imagePath.split("/");
   const projectId = parts[0];
   const flowId = parts[1];
-  return `${projectId}/${flowId}/${stepId}-localized.jpg`;
+  return `${projectId}/${flowId}/${stepId}-localized.${storageExtension}`;
 }
 
 Deno.serve(async (request: Request) => {
@@ -86,8 +135,8 @@ Deno.serve(async (request: Request) => {
 
   const arrayBuffer = await file.arrayBuffer();
   const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-  const mime = file.type || "image/png";
-  const imageDataUrl = `data:${mime};base64,${base64}`;
+  const sourceFormat = resolveSourceImageFormat(payload.imagePath, file.type);
+  const imageDataUrl = `data:${sourceFormat.mime};base64,${base64}`;
 
   const imageResponse = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -109,7 +158,7 @@ Deno.serve(async (request: Request) => {
                 payload.notes,
               ),
             },
-            { type: "input_image", image_url: imageDataUrl, detail: "low" },
+            { type: "input_image", image_url: imageDataUrl, detail: "auto" },
           ],
         },
       ],
@@ -119,8 +168,10 @@ Deno.serve(async (request: Request) => {
           action: "edit",
           model: IMAGE_MODEL,
           quality: IMAGE_QUALITY,
-          output_format: "jpeg",
-          output_compression: 75,
+          output_format: sourceFormat.outputFormat,
+          ...(sourceFormat.outputFormat === "jpeg" || sourceFormat.outputFormat === "webp"
+            ? { output_compression: IMAGE_COMPRESSION }
+            : {}),
           moderation: "low",
           input_fidelity: "low",
         },
@@ -163,13 +214,17 @@ Deno.serve(async (request: Request) => {
     });
   }
 
-  const translatedImagePath = localizedPath(payload.imagePath, payload.stepId);
+  const translatedImagePath = localizedPath(
+    payload.imagePath,
+    payload.stepId,
+    sourceFormat.storageExtension,
+  );
   const binary = Uint8Array.from(atob(imageBase64), (char) => char.charCodeAt(0));
 
   const { error: uploadError } = await supabase.storage
     .from("screenshots")
     .upload(translatedImagePath, binary, {
-      contentType: "image/jpeg",
+      contentType: contentTypeForFormat(sourceFormat.outputFormat),
       upsert: true,
     });
 

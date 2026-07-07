@@ -1,17 +1,21 @@
 import OpenAI from "openai";
 
 import type { requireUser } from "@/lib/api/helpers";
-import {
-  PLACEHOLDER_STEP_SUMMARY,
-  PLACEHOLDER_STEP_TITLE,
-  PROCESS_IMAGE_OUTPUT_FORMAT,
-  PROCESS_IMAGE_TOOL,
-  PROCESS_STEP_RESPONSE_MODEL,
-} from "@/lib/process-step-config";
+import { resolveSourceImageFormat } from "@/lib/image-format";
 import {
   bufferToDataUrl,
   prepareScreenshot,
 } from "@/lib/prepare-screenshot";
+import {
+  buildImageGenerationTool,
+  contentTypeForFormat,
+  PLACEHOLDER_STEP_SUMMARY,
+  PLACEHOLDER_STEP_TITLE,
+  PROCESS_IMAGE_INPUT_DETAIL,
+  PROCESS_STEP_RESPONSE_MODEL,
+  resolveOutputFormat,
+  storageExtensionForFormat,
+} from "@/lib/process-step-config";
 import {
   localizedScreenshotStoragePath,
   parseScreenshotStoragePath,
@@ -78,19 +82,12 @@ function extractGeneratedImageBase64(
   return null;
 }
 
-function localizedExtension() {
-  return PROCESS_IMAGE_OUTPUT_FORMAT === "jpeg" ? "jpg" : "png";
-}
-
-function localizedContentType() {
-  return PROCESS_IMAGE_OUTPUT_FORMAT === "jpeg" ? "image/jpeg" : "image/png";
-}
-
 async function generateLocalizedImage(
   openai: OpenAI,
   imageDataUrl: string,
   sourceLanguage: string | null | undefined,
   targetLanguage: string,
+  outputFormat: ReturnType<typeof resolveOutputFormat>,
   notes?: string | null,
 ) {
   const response = await openai.responses.create({
@@ -106,12 +103,12 @@ async function generateLocalizedImage(
           {
             type: "input_image",
             image_url: imageDataUrl,
-            detail: "low",
+            detail: PROCESS_IMAGE_INPUT_DETAIL,
           },
         ],
       },
     ],
-    tools: [PROCESS_IMAGE_TOOL],
+    tools: [buildImageGenerationTool(outputFormat)],
     tool_choice: { type: "image_generation" },
   });
 
@@ -175,7 +172,16 @@ export async function processStep(
     throw new Error(downloadError?.message ?? "Failed to download screenshot.");
   }
 
-  const prepared = await prepareScreenshot(await file.arrayBuffer());
+  const sourceFormat = resolveSourceImageFormat(input.imagePath, file.type);
+  const outputFormat = resolveOutputFormat(sourceFormat.openAiFormat);
+  const storageExtension = storageExtensionForFormat(outputFormat);
+
+  const prepared = await prepareScreenshot(
+    await file.arrayBuffer(),
+    sourceFormat.mime,
+    sourceFormat.openAiFormat,
+    storageExtension,
+  );
   const imageDataUrl = bufferToDataUrl(prepared.buffer, prepared.mime);
 
   const openai = getOpenAIClient();
@@ -184,23 +190,23 @@ export async function processStep(
     imageDataUrl,
     input.sourceLanguage,
     input.targetLanguage,
+    outputFormat,
     input.notes,
   );
 
   const { projectId, flowId } = parseScreenshotStoragePath(input.imagePath);
-  const extension = localizedExtension();
   const translatedImagePath = localizedScreenshotStoragePath(
     projectId,
     flowId,
     input.stepId,
-    extension,
+    storageExtension,
   );
 
   const localizedBuffer = Buffer.from(localizedImageBase64, "base64");
   const { error: uploadError } = await supabase.storage
     .from(SCREENSHOTS_BUCKET)
     .upload(translatedImagePath, localizedBuffer, {
-      contentType: localizedContentType(),
+      contentType: contentTypeForFormat(outputFormat),
       upsert: true,
     });
 
