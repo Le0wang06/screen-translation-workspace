@@ -2,8 +2,8 @@ import sharp, { type Sharp } from "sharp";
 
 import type { ImageOutputFormat } from "@/lib/image-format";
 
-export const SCREENSHOT_MAX_WIDTH = 1536;
-export const SCREENSHOT_QUALITY = 95;
+export const SCREENSHOT_MAX_WIDTH = 1280;
+export const SCREENSHOT_QUALITY = 92;
 
 export type PreparedScreenshot = {
   buffer: Buffer;

@@ -59,17 +59,11 @@ function buildLocalizationPrompt(
 
   const notesHint = notes?.trim() ? `\nReviewer notes: ${notes.trim()}` : "";
 
-  return `Localize this existing product screenshot with a strict in-place edit. Do not redesign the screen.
-
+  return `Edit this UI screenshot in place. Do not redesign the screen.
 ${sourceHint}
-Replace ONLY visible UI text with natural ${targetLanguage} translations.
+Translate all visible UI text into natural ${targetLanguage}.
 ${notesHint}
-Rules:
-- Keep the exact same screenshot: layout, colors, backgrounds, icons, images, spacing, alignment, and typography.
-- Do not move, resize, add, or remove UI elements.
-- Do not change logos unless they contain translatable words.
-- Do not add borders, watermarks, blur, or visual effects.
-- The result must look like the original image with translated labels only.`;
+Keep layout, colors, backgrounds, icons, spacing, and typography identical. Only replace readable UI copy.`;
 }
 
 function buildMetadataPrompt(targetLanguage: string) {

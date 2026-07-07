@@ -12,11 +12,11 @@ export const PROCESS_IMAGE_QUALITY =
 
 export const PROCESS_IMAGE_INPUT_DETAIL =
   (process.env.PROCESS_IMAGE_INPUT_DETAIL as "low" | "high" | "auto" | undefined) ??
-  "high";
+  "auto";
 
 export const PROCESS_IMAGE_INPUT_FIDELITY =
   (process.env.PROCESS_IMAGE_INPUT_FIDELITY as "low" | "high" | undefined) ??
-  "high";
+  "low";
 
 export const PROCESS_IMAGE_OUTPUT_FORMAT_OVERRIDE = process.env
   .PROCESS_IMAGE_OUTPUT_FORMAT as ImageOutputFormat | undefined;
@@ -39,7 +39,6 @@ export function buildImageGenerationTool(outputFormat: ImageOutputFormat) {
       : {}),
     moderation: "low" as const,
     input_fidelity: PROCESS_IMAGE_INPUT_FIDELITY,
-    size: "auto" as const,
   };
 }
 
