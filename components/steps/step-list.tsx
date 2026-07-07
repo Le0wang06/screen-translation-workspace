@@ -11,11 +11,12 @@ import {
 import type { Step } from "@/lib/db/types";
 
 type StepListProps = {
+  flowId: string;
   steps: Step[];
   thumbnailUrls: Record<string, string | null>;
 };
 
-export function StepList({ steps, thumbnailUrls }: StepListProps) {
+export function StepList({ flowId, steps, thumbnailUrls }: StepListProps) {
   if (steps.length === 0) {
     return (
       <Card className="border-border/70 shadow-sm">
@@ -42,7 +43,7 @@ export function StepList({ steps, thumbnailUrls }: StepListProps) {
         <UploadStepButton />
       </CardHeader>
       <CardContent className="flex flex-col gap-4 p-4 sm:p-6">
-        <StepFilmstrip steps={steps} thumbnailUrls={thumbnailUrls} />
+        <StepFilmstrip steps={steps} thumbnailUrls={thumbnailUrls} flowId={flowId} />
         <DropZoneCard compact />
       </CardContent>
     </Card>

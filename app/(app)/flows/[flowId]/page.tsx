@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { StepList } from "@/components/steps/step-list";
 import { FlowUploadProvider } from "@/components/steps/flow-upload-provider";
+import { StepRealtimeListener } from "@/components/steps/step-realtime-listener";
 import { PageBreadcrumb } from "@/components/page-breadcrumb";
 import { createClient } from "@/lib/supabase/server";
 import { getScreenshotSignedUrl } from "@/lib/storage/signed-url";
@@ -53,7 +54,8 @@ export default async function FlowPage({ params }: FlowPageProps) {
 
   return (
     <FlowUploadProvider flowId={flowId}>
-      <div className="flex flex-col gap-8">
+      <StepRealtimeListener flowId={flowId}>
+        <div className="flex flex-col gap-8">
         <section className="flex flex-col gap-4">
           <PageBreadcrumb
             items={[
@@ -71,10 +73,12 @@ export default async function FlowPage({ params }: FlowPageProps) {
         </section>
 
         <StepList
+          flowId={flowId}
           steps={steps ?? []}
           thumbnailUrls={thumbnailUrls}
         />
-      </div>
+        </div>
+      </StepRealtimeListener>
     </FlowUploadProvider>
   );
 }

@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
 
 import { getOwnedStep } from "@/lib/api/flows";
-import { notFound, requireUser, serverError } from "@/lib/api/helpers";
+import {
+  badRequest,
+  notFound,
+  requireUser,
+  serverError,
+} from "@/lib/api/helpers";
 import { triggerProcessStep } from "@/lib/trigger-process-step";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
-export async function POST(_request: Request, context: RouteContext) {
+export async function POST(request: Request, context: RouteContext) {
   const { id: stepId } = await context.params;
   const { user, supabase, unauthorized } = await requireUser();
   if (unauthorized) return unauthorized;
@@ -27,19 +32,18 @@ export async function POST(_request: Request, context: RouteContext) {
     return notFound("Step not found.");
   }
 
-  if (step.status !== "failed") {
-    return NextResponse.json(
-      { error: "Only failed steps can be retried." },
-      { status: 400 },
-    );
+  if (step.status === "processing") {
+    return badRequest("This step is already processing.");
   }
 
   if (!step.image_url) {
-    return NextResponse.json(
-      { error: "This step has no screenshot to process." },
-      { status: 400 },
-    );
+    return badRequest("This step has no screenshot to process.");
   }
+
+  const body = (await request.json().catch(() => ({}))) as {
+    notes?: string;
+  };
+  const notes = body.notes?.trim() || null;
 
   const project = step.projects;
 
@@ -62,6 +66,7 @@ export async function POST(_request: Request, context: RouteContext) {
     imagePath: step.image_url,
     sourceLanguage: project.source_language ?? step.source_language,
     targetLanguage: project.target_language ?? step.target_language,
+    notes,
   });
 
   const { data: updatedStep, error: fetchError } = await supabase

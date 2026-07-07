@@ -14,12 +14,14 @@ import { cn } from "@/lib/utils";
 type StepNavigationProps = {
   steps: Step[];
   currentStepId: string;
+  flowId: string;
   thumbnailUrls: Record<string, string | null>;
 };
 
 export function StepNavigation({
   steps,
   currentStepId,
+  flowId,
   thumbnailUrls,
 }: StepNavigationProps) {
   const router = useRouter();
@@ -128,13 +130,16 @@ export function StepNavigation({
         steps={steps}
         thumbnailUrls={thumbnailUrls}
         currentStepId={currentStepId}
+        flowId={flowId}
       />
 
       <p className="text-xs text-muted-foreground">
-        Scroll the strip, use{" "}
+        Scroll the strip, drag the grip to reorder, use{" "}
         <kbd className="rounded border px-1">←</kbd>{" "}
-        <kbd className="rounded border px-1">→</kbd>, or add another screen
-        without leaving this page.
+        <kbd className="rounded border px-1">→</kbd>,{" "}
+        <kbd className="rounded border px-1">P</kbd> to present,{" "}
+        <kbd className="rounded border px-1">C</kbd> to compare, or add another
+        screen without leaving this page.
       </p>
     </section>
   );

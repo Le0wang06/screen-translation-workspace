@@ -14,6 +14,7 @@ export type ProcessStepInput = {
   imagePath: string;
   sourceLanguage?: string | null;
   targetLanguage: string;
+  notes?: string | null;
 };
 
 export type ProcessStepResult = {
@@ -35,16 +36,21 @@ function getOpenAIClient() {
 function buildLocalizationPrompt(
   sourceLanguage: string | null | undefined,
   targetLanguage: string,
+  notes?: string | null,
 ) {
   const sourceHint = sourceLanguage
     ? `The UI text is in ${sourceLanguage}.`
     : "Detect the source language from the screenshot.";
 
+  const notesHint = notes?.trim()
+    ? `\nAdditional reviewer instructions:\n${notes.trim()}\n`
+    : "";
+
   return `Recreate this product UI screenshot as a new image.
 
 ${sourceHint}
 Translate every visible UI label, button, heading, menu item, placeholder, and body text into ${targetLanguage}.
-
+${notesHint}
 Requirements:
 - Keep the same layout, spacing, colors, icons, and overall design.
 - Only change readable UI copy into natural ${targetLanguage}.
@@ -78,6 +84,7 @@ async function generateLocalizedImage(
   imageDataUrl: string,
   sourceLanguage: string | null | undefined,
   targetLanguage: string,
+  notes?: string | null,
 ) {
   const response = await openai.responses.create({
     model: "gpt-4o",
@@ -87,7 +94,7 @@ async function generateLocalizedImage(
         content: [
           {
             type: "input_text",
-            text: buildLocalizationPrompt(sourceLanguage, targetLanguage),
+            text: buildLocalizationPrompt(sourceLanguage, targetLanguage, notes),
           },
           {
             type: "input_image",
@@ -179,6 +186,7 @@ export async function processStep(
       imageDataUrl,
       input.sourceLanguage,
       input.targetLanguage,
+      input.notes,
     ),
     extractStepMetadata(openai, imageDataUrl, input.targetLanguage),
   ]);

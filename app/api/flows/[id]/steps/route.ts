@@ -1,4 +1,4 @@
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 
 import { getOwnedFlow } from "@/lib/api/flows";
 import {
@@ -7,8 +7,8 @@ import {
   requireUser,
   serverError,
 } from "@/lib/api/helpers";
-import { markStepFailed, processStep } from "@/lib/process-step";
-import { createClient } from "@/lib/supabase/server";
+import { markStepFailed } from "@/lib/process-step";
+import { triggerProcessStep } from "@/lib/trigger-process-step";
 import {
   extensionFromMime,
   screenshotStoragePath,
@@ -154,22 +154,11 @@ export async function POST(request: Request, context: RouteContext) {
 
   const stepWithImage = { ...step, image_url: storagePath };
 
-  after(async () => {
-    const backgroundSupabase = await createClient();
-    try {
-      await processStep(backgroundSupabase, {
-        stepId: step.id,
-        imagePath: storagePath,
-        sourceLanguage: project.source_language,
-        targetLanguage: project.target_language,
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to process screenshot.";
-      await markStepFailed(backgroundSupabase, step.id, message);
-    }
+  await triggerProcessStep(supabase, {
+    stepId: step.id,
+    imagePath: storagePath,
+    sourceLanguage: project.source_language,
+    targetLanguage: project.target_language,
   });
 
   return NextResponse.json({ step: stepWithImage }, { status: 201 });
