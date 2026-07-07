@@ -54,7 +54,7 @@ export function DropZoneCard({ compact = false }: DropZoneCardProps) {
           {isDragging ? "Drop screenshot here" : "Drop a screenshot here"}
         </p>
         <p className="text-xs text-muted-foreground text-pretty">
-          Click to browse, paste with ⌘V, or drag anywhere on this page.
+          Click to browse, paste with ⌘V, or drop multiple screenshots.
         </p>
       </div>
     </div>

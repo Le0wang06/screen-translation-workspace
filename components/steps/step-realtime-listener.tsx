@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import { createClient } from "@/lib/supabase/client";
+import { debounce } from "@/lib/debounce";
 
 type StepRealtimeListenerProps = {
   flowId: string;
@@ -18,6 +19,9 @@ export function StepRealtimeListener({
 
   useEffect(() => {
     const supabase = createClient();
+    const refresh = debounce(() => {
+      router.refresh();
+    }, 350);
 
     const channel = supabase
       .channel(`flow-steps:${flowId}`)
@@ -30,12 +34,13 @@ export function StepRealtimeListener({
           filter: `flow_id=eq.${flowId}`,
         },
         () => {
-          router.refresh();
+          refresh();
         },
       )
       .subscribe();
 
     return () => {
+      refresh.cancel();
       void supabase.removeChannel(channel);
     };
   }, [flowId, router]);

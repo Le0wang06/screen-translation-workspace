@@ -169,6 +169,7 @@ export function StepView({
             imageUrl={translatedImageUrl}
             alt={step.title || "Translated screenshot"}
             processing={step.status === "processing"}
+            processingOriginalUrl={originalImageUrl}
             emptyLabel="Translated screenshot not available yet."
             failed={step.status === "failed"}
             stepId={stepId}
@@ -201,6 +202,7 @@ type ScreenCardProps = {
   alt: string;
   emptyLabel: string;
   processing?: boolean;
+  processingOriginalUrl?: string | null;
   failed?: boolean;
   stepId?: string;
 };
@@ -212,6 +214,7 @@ function ScreenCard({
   alt,
   emptyLabel,
   processing,
+  processingOriginalUrl,
   failed,
   stepId,
 }: ScreenCardProps) {
@@ -223,14 +226,14 @@ function ScreenCard({
       </CardHeader>
       <CardContent className="p-0">
         {processing ? (
-          <ProcessingImagePlaceholder />
+          <ProcessingImagePlaceholder originalImageUrl={processingOriginalUrl} />
         ) : imageUrl ? (
           <div className="relative aspect-[4/3] w-full bg-muted/20">
             <Image
               src={imageUrl}
               alt={alt}
               fill
-              className="object-contain"
+              className="object-contain animate-in fade-in duration-500"
               sizes="(max-width: 1024px) 100vw, 50vw"
               unoptimized
             />

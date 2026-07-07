@@ -7,6 +7,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useTransition,
 } from "react";
 import { useRouter } from "next/navigation";
 
@@ -14,7 +15,10 @@ import {
   imageFromClipboardApi,
   imageFromDataTransfer,
 } from "@/components/steps/clipboard-image";
-import { UploadOverlay } from "@/components/steps/upload-overlay";
+import {
+  UploadStatusBar,
+  type UploadStatus,
+} from "@/components/steps/upload-status-bar";
 import { cn } from "@/lib/utils";
 
 type FlowUploadContextValue = {
@@ -22,10 +26,12 @@ type FlowUploadContextValue = {
   error: string | null;
   isDragging: boolean;
   uploadFile: (file: File) => Promise<void>;
+  uploadFiles: (files: FileList | File[]) => Promise<void>;
   pasteFromClipboard: () => Promise<void>;
   pickFile: () => void;
   registerInput: (input: HTMLInputElement | null) => void;
   onInputChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  clearError: () => void;
 };
 
 const FlowUploadContext = createContext<FlowUploadContextValue | null>(null);
@@ -35,6 +41,10 @@ function isEditableTarget(target: EventTarget | null) {
   return Boolean(
     target.closest('input, textarea, select, [contenteditable="true"]'),
   );
+}
+
+function imageFilesFromFileList(files: FileList | File[]) {
+  return Array.from(files).filter((file) => file.type.startsWith("image/"));
 }
 
 type FlowUploadProviderProps = {
@@ -48,41 +58,105 @@ export function FlowUploadProvider({
 }: FlowUploadProviderProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [, startTransition] = useTransition();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [status, setStatus] = useState<UploadStatus | null>(null);
 
-  const uploadFile = useCallback(
-    async (file: File) => {
+  const clearError = useCallback(() => setError(null), []);
+
+  const uploadSingle = useCallback(
+    async (file: File): Promise<string | null> => {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(`/api/flows/${flowId}/steps`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const payload = (await response.json()) as {
+        error?: string;
+        step?: { id: string };
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to upload screenshot.");
+      }
+
+      return payload.step?.id ?? null;
+    },
+    [flowId],
+  );
+
+  const uploadFiles = useCallback(
+    async (files: FileList | File[]) => {
+      const images = imageFilesFromFileList(files);
+
+      if (images.length === 0) {
+        setError("Drop an image file (PNG, JPG, or WebP).");
+        return;
+      }
+
       setPending(true);
       setError(null);
+      setStatus({ kind: "uploading", current: 0, total: images.length });
+
+      const failures: string[] = [];
+      let lastStepId: string | null = null;
 
       try {
-        const formData = new FormData();
-        formData.append("file", file);
+        for (let index = 0; index < images.length; index += 1) {
+          setStatus({
+            kind: "uploading",
+            current: index + 1,
+            total: images.length,
+          });
 
-        const response = await fetch(`/api/flows/${flowId}/steps`, {
-          method: "POST",
-          body: formData,
-        });
-
-        const payload = (await response.json()) as {
-          error?: string;
-          step?: { id: string };
-        };
-
-        if (!response.ok) {
-          setError(payload.error ?? "Failed to upload screenshot.");
-          return;
+          try {
+            const stepId = await uploadSingle(images[index]);
+            if (stepId) {
+              lastStepId = stepId;
+            }
+          } catch (err) {
+            failures.push(
+              err instanceof Error ? err.message : "Upload failed.",
+            );
+          }
         }
 
-        router.refresh();
+        if (lastStepId) {
+          startTransition(() => {
+            router.push(`/steps/${lastStepId}`);
+            router.refresh();
+          });
 
-        if (payload.step?.id) {
-          router.push(`/steps/${payload.step.id}`);
+          if (failures.length === 0) {
+            setStatus({
+              kind: "success",
+              message:
+                images.length > 1
+                  ? `${images.length} screens added — translating in background`
+                  : "Screenshot added — translating in background",
+            });
+          }
+        }
+
+        if (failures.length > 0) {
+          const message =
+            failures.length === images.length
+              ? failures[0]
+              : `${failures.length} upload${failures.length === 1 ? "" : "s"} failed. Others were added.`;
+          setError(message);
+          setStatus({ kind: "error", message });
+        } else if (!lastStepId) {
+          setError("Failed to upload screenshot.");
+          setStatus({ kind: "error", message: "Failed to upload screenshot." });
         }
       } catch {
         setError("Failed to upload screenshot.");
+        setStatus({ kind: "error", message: "Failed to upload screenshot." });
       } finally {
         setPending(false);
         if (inputRef.current) {
@@ -90,7 +164,12 @@ export function FlowUploadProvider({
         }
       }
     },
-    [flowId, router],
+    [router, startTransition, uploadSingle],
+  );
+
+  const uploadFile = useCallback(
+    async (file: File) => uploadFiles([file]),
+    [uploadFiles],
   );
 
   const pasteFromClipboard = useCallback(async () => {
@@ -142,14 +221,24 @@ export function FlowUploadProvider({
     return () => document.removeEventListener("paste", handlePaste, true);
   }, [handlePaste]);
 
+  useEffect(() => {
+    if (!status || status.kind === "uploading") return;
+
+    const timeoutId = setTimeout(() => {
+      setStatus(null);
+    }, 4000);
+
+    return () => clearTimeout(timeoutId);
+  }, [status]);
+
   const onInputChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (file) {
-        void uploadFile(file);
+      const files = event.target.files;
+      if (files?.length) {
+        void uploadFiles(files);
       }
     },
-    [uploadFile],
+    [uploadFiles],
   );
 
   const pickFile = useCallback(() => {
@@ -177,14 +266,9 @@ export function FlowUploadProvider({
       setIsDragging(false);
       if (pending) return;
 
-      const file = event.dataTransfer.files?.[0];
-      if (file?.type.startsWith("image/")) {
-        await uploadFile(file);
-      } else {
-        setError("Drop an image file (PNG, JPG, or WebP).");
-      }
+      await uploadFiles(event.dataTransfer.files);
     },
-    [pending, uploadFile],
+    [pending, uploadFiles],
   );
 
   return (
@@ -194,10 +278,12 @@ export function FlowUploadProvider({
         error,
         isDragging,
         uploadFile,
+        uploadFiles,
         pasteFromClipboard,
         pickFile,
         registerInput,
         onInputChange,
+        clearError,
       }}
     >
       <div
@@ -217,13 +303,16 @@ export function FlowUploadProvider({
             <div className="rounded-2xl border border-primary/30 bg-background/95 px-6 py-4 text-center shadow-lg">
               <p className="text-sm font-medium">Drop to add screenshot</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Release to upload this screen to the flow
+                Drop one or more images — they&apos;ll upload in order
               </p>
             </div>
           </div>
         ) : null}
         {children}
-        <UploadOverlay open={pending} />
+        <UploadStatusBar
+          status={status}
+          onDismiss={() => setStatus(null)}
+        />
       </div>
     </FlowUploadContext.Provider>
   );

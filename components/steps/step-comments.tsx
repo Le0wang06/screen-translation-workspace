@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Send } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
+import { debounce } from "@/lib/debounce";
 import type { Comment } from "@/lib/db/types";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
@@ -46,6 +47,9 @@ export function StepComments({
 
   useEffect(() => {
     const supabase = createClient();
+    const refresh = debounce(() => {
+      router.refresh();
+    }, 350);
 
     const channel = supabase
       .channel(`step-comments:${stepId}`)
@@ -58,12 +62,13 @@ export function StepComments({
           filter: `step_id=eq.${stepId}`,
         },
         () => {
-          router.refresh();
+          refresh();
         },
       )
       .subscribe();
 
     return () => {
+      refresh.cancel();
       void supabase.removeChannel(channel);
     };
   }, [router, stepId]);

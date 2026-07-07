@@ -29,6 +29,7 @@ export function UploadStepButton() {
         ref={inputRef}
         type="file"
         accept="image/*"
+        multiple
         className="sr-only"
         onChange={onInputChange}
         disabled={pending}
@@ -55,11 +56,8 @@ export function UploadStepButton() {
         </Button>
       </div>
       <p className="max-w-md text-xs text-muted-foreground text-pretty">
-        On Mac, copy a screenshot with{" "}
-        <kbd className="rounded border px-1">⌘⇧⌃4</kbd> (regular{" "}
-        <kbd className="rounded border px-1">⌘⇧4</kbd> saves to Desktop). You can
-        also drag an image onto this page or press{" "}
-        <kbd className="rounded border px-1">⌘V</kbd>.
+        Paste with <kbd className="rounded border px-1">⌘V</kbd>, drag one or
+        more images, or pick multiple files at once.
       </p>
       {error ? <FieldError errors={[{ message: error }]} /> : null}
     </div>
