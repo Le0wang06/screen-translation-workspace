@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { StepList } from "@/components/steps/step-list";
+import { FlowUploadProvider } from "@/components/steps/flow-upload-provider";
 import { PageBreadcrumb } from "@/components/page-breadcrumb";
 import { createClient } from "@/lib/supabase/server";
 import { getScreenshotSignedUrl } from "@/lib/storage/signed-url";
@@ -50,28 +51,29 @@ export default async function FlowPage({ params }: FlowPageProps) {
   );
 
   return (
-    <div className="flex flex-col gap-8">
-      <section className="flex flex-col gap-4">
-        <PageBreadcrumb
-          items={[
-            { label: "Dashboard", href: "/dashboard" },
-            { label: project.name, href: `/projects/${project.id}` },
-            { label: flow.name },
-          ]}
-        />
-        <div className="max-w-2xl space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight">{flow.name}</h1>
-          <p className="text-muted-foreground text-pretty">
-            Upload screenshots in order to build a translated walkthrough.
-          </p>
-        </div>
-      </section>
+    <FlowUploadProvider flowId={flowId}>
+      <div className="flex flex-col gap-8">
+        <section className="flex flex-col gap-4">
+          <PageBreadcrumb
+            items={[
+              { label: "Dashboard", href: "/dashboard" },
+              { label: project.name, href: `/projects/${project.id}` },
+              { label: flow.name },
+            ]}
+          />
+          <div className="max-w-2xl space-y-2">
+            <h1 className="text-3xl font-semibold tracking-tight">{flow.name}</h1>
+            <p className="text-muted-foreground text-pretty">
+              Upload screenshots in order to build a translated walkthrough.
+            </p>
+          </div>
+        </section>
 
-      <StepList
-        flowId={flowId}
-        steps={steps ?? []}
-        thumbnailUrls={thumbnailUrls}
-      />
-    </div>
+        <StepList
+          steps={steps ?? []}
+          thumbnailUrls={thumbnailUrls}
+        />
+      </div>
+    </FlowUploadProvider>
   );
 }

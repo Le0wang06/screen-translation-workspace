@@ -14,12 +14,11 @@ import {
 import type { Step } from "@/lib/db/types";
 
 type StepListProps = {
-  flowId: string;
   steps: Step[];
   thumbnailUrls: Record<string, string | null>;
 };
 
-export function StepList({ flowId, steps, thumbnailUrls }: StepListProps) {
+export function StepList({ steps, thumbnailUrls }: StepListProps) {
   if (steps.length === 0) {
     return (
       <Card className="border-border/70 shadow-sm">
@@ -33,7 +32,7 @@ export function StepList({ flowId, steps, thumbnailUrls }: StepListProps) {
               Upload your first screenshot to translate visible UI text.
             </p>
           </div>
-          <UploadStepButton flowId={flowId} />
+          <UploadStepButton />
         </CardContent>
       </Card>
     );
@@ -48,7 +47,7 @@ export function StepList({ flowId, steps, thumbnailUrls }: StepListProps) {
             {steps.length} step{steps.length === 1 ? "" : "s"} in this flow
           </CardDescription>
         </div>
-        <UploadStepButton flowId={flowId} />
+        <UploadStepButton />
       </CardHeader>
       <CardContent className="p-0">
         <ul className="divide-y divide-border/60">
