@@ -14,6 +14,9 @@ const IMAGE_MODEL = Deno.env.get("PROCESS_IMAGE_MODEL") ?? "gpt-image-1";
 const IMAGE_QUALITY = Deno.env.get("PROCESS_IMAGE_QUALITY") ?? "medium";
 const IMAGE_FORMAT_OVERRIDE = Deno.env.get("PROCESS_IMAGE_OUTPUT_FORMAT");
 const IMAGE_COMPRESSION = Number(Deno.env.get("PROCESS_IMAGE_OUTPUT_COMPRESSION") ?? "88");
+const IMAGE_INPUT_FIDELITY =
+  (Deno.env.get("PROCESS_IMAGE_INPUT_FIDELITY") as "low" | "high" | undefined) ??
+  "high";
 
 type OutputFormat = "png" | "jpeg" | "webp";
 
@@ -73,11 +76,17 @@ function buildLocalizationPrompt(
 
   const notesHint = notes?.trim() ? `\nReviewer notes: ${notes.trim()}` : "";
 
-  return `Edit this UI screenshot in place.
+  return `Localize this existing product screenshot with a strict in-place edit. Do not redesign the screen.
+
 ${sourceHint}
-Translate all visible UI text into natural ${targetLanguage}.
+Replace ONLY visible UI text with natural ${targetLanguage} translations.
 ${notesHint}
-Keep layout, colors, icons, and spacing the same. Only change readable UI copy.`;
+Rules:
+- Keep the exact same screenshot: layout, colors, backgrounds, icons, images, spacing, alignment, and typography.
+- Do not move, resize, add, or remove UI elements.
+- Do not change logos unless they contain translatable words.
+- Do not add borders, watermarks, blur, or visual effects.
+- The result must look like the original image with translated labels only.`;
 }
 
 function buildMetadataPrompt(targetLanguage: string) {
@@ -158,7 +167,7 @@ Deno.serve(async (request: Request) => {
                 payload.notes,
               ),
             },
-            { type: "input_image", image_url: imageDataUrl, detail: "auto" },
+            { type: "input_image", image_url: imageDataUrl, detail: "high" },
           ],
         },
       ],
@@ -173,7 +182,8 @@ Deno.serve(async (request: Request) => {
             ? { output_compression: IMAGE_COMPRESSION }
             : {}),
           moderation: "low",
-          input_fidelity: "low",
+          input_fidelity: IMAGE_INPUT_FIDELITY,
+          size: "auto",
         },
       ],
       tool_choice: { type: "image_generation" },

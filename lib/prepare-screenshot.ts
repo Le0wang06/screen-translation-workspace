@@ -1,9 +1,9 @@
-import sharp from "sharp";
+import sharp, { type Sharp } from "sharp";
 
 import type { ImageOutputFormat } from "@/lib/image-format";
 
-export const SCREENSHOT_MAX_WIDTH = 1280;
-export const SCREENSHOT_QUALITY = 90;
+export const SCREENSHOT_MAX_WIDTH = 1536;
+export const SCREENSHOT_QUALITY = 95;
 
 export type PreparedScreenshot = {
   buffer: Buffer;
@@ -13,6 +13,33 @@ export type PreparedScreenshot = {
   width: number;
   height: number;
 };
+
+async function encodeInFormat(
+  pipeline: Sharp,
+  openAiFormat: ImageOutputFormat,
+) {
+  switch (openAiFormat) {
+    case "jpeg":
+      return {
+        buffer: await pipeline
+          .jpeg({ quality: SCREENSHOT_QUALITY, mozjpeg: true })
+          .toBuffer(),
+        mime: "image/jpeg",
+      };
+    case "webp":
+      return {
+        buffer: await pipeline.webp({ quality: SCREENSHOT_QUALITY }).toBuffer(),
+        mime: "image/webp",
+      };
+    default:
+      return {
+        buffer: await pipeline
+          .png({ compressionLevel: 6, palette: false })
+          .toBuffer(),
+        mime: "image/png",
+      };
+  }
+}
 
 export async function prepareScreenshot(
   input: Buffer | ArrayBuffer,
@@ -31,26 +58,7 @@ export async function prepareScreenshot(
       ? image.resize({ width: SCREENSHOT_MAX_WIDTH, withoutEnlargement: true })
       : image;
 
-  let output: Buffer;
-  let mime = sourceMime;
-
-  switch (openAiFormat) {
-    case "jpeg":
-      output = await pipeline
-        .jpeg({ quality: SCREENSHOT_QUALITY, mozjpeg: true })
-        .toBuffer();
-      mime = "image/jpeg";
-      break;
-    case "webp":
-      output = await pipeline.webp({ quality: SCREENSHOT_QUALITY }).toBuffer();
-      mime = "image/webp";
-      break;
-    default:
-      output = await pipeline.png().toBuffer();
-      mime = "image/png";
-      break;
-  }
-
+  const { buffer: output, mime } = await encodeInFormat(pipeline, openAiFormat);
   const outputMeta = await sharp(output).metadata();
 
   return {
@@ -58,8 +66,8 @@ export async function prepareScreenshot(
     mime,
     openAiFormat,
     storageExtension,
-    width: outputMeta.width ?? SCREENSHOT_MAX_WIDTH,
-    height: outputMeta.height ?? SCREENSHOT_MAX_WIDTH,
+    width: outputMeta.width ?? width,
+    height: outputMeta.height ?? width,
   };
 }
 

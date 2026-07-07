@@ -56,7 +56,7 @@ async function main() {
         content: [
           {
             type: "input_text",
-            text: `Edit this UI screenshot in place. Translate all visible UI text into natural Spanish. Keep layout and design the same.`,
+            text: `Localize this existing product screenshot with a strict in-place edit. Replace ONLY visible UI text with natural Spanish. Keep layout, colors, icons, and spacing identical.`,
           },
           { type: "input_image", image_url: imageDataUrl, detail: PROCESS_IMAGE_INPUT_DETAIL },
         ],
