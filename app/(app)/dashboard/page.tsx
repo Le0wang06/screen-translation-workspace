@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { createClient } from "@/lib/supabase/server";
 
 const roadmap = [
   {
@@ -28,21 +29,28 @@ const roadmap = [
   },
 ] as const;
 
-export default function HomePage() {
+export default async function DashboardPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <div className="flex flex-col gap-10">
       <section className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <Badge variant="secondary">Day 1 · Foundation</Badge>
-          <Badge variant="outline">v0 preview</Badge>
+          <Badge variant="secondary">Dashboard</Badge>
+          {user?.email ? (
+            <Badge variant="outline">{user.email}</Badge>
+          ) : null}
         </div>
         <div className="max-w-2xl space-y-3">
           <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-            Screenshot walkthroughs, translated and organized.
+            Your translation projects
           </h1>
           <p className="text-base leading-relaxed text-muted-foreground text-pretty sm:text-lg">
-            Upload screens as you go through a product. AI extracts visible UI
-            text and saves each screen as a step your team can review.
+            Create a project, add flows, and upload screenshots as ordered
+            steps. Project creation lands in the next Day 1 step.
           </p>
         </div>
       </section>
@@ -52,7 +60,7 @@ export default function HomePage() {
           <CardHeader className="border-b border-border/60 bg-muted/20">
             <CardTitle className="text-base">Projects</CardTitle>
             <CardDescription>
-              Your dashboard will list translation projects here.
+              Flows and screenshots will be organized under each project.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center justify-center gap-4 py-14 text-center">
@@ -65,8 +73,7 @@ export default function HomePage() {
             <div className="max-w-sm space-y-1">
               <p className="text-sm font-medium">No projects yet</p>
               <p className="text-sm text-muted-foreground text-pretty">
-                Auth and project creation land in the next Day 1 steps. The app
-                shell is ready.
+                You&apos;re signed in. Project and flow creation is up next.
               </p>
             </div>
             <Button disabled className="gap-2">
