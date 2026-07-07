@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Languages } from "lucide-react";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
+import { buttonVariants } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
@@ -37,9 +38,7 @@ export async function AppHeader() {
                 {user.email}
               </span>
               <SignOutButton />
-              <Button size="sm" disabled>
-                New project
-              </Button>
+              <CreateProjectDialog />
             </>
           ) : (
             <Link
