@@ -179,6 +179,7 @@ export type Database = {
           summary: string | null
           target_language: string
           title: string | null
+          translated_image_url: string
           updated_at: string
         }
         Insert: {
@@ -194,6 +195,7 @@ export type Database = {
           summary?: string | null
           target_language?: string
           title?: string | null
+          translated_image_url?: string
           updated_at?: string
         }
         Update: {
@@ -209,6 +211,7 @@ export type Database = {
           summary?: string | null
           target_language?: string
           title?: string | null
+          translated_image_url?: string
           updated_at?: string
         }
         Relationships: [

@@ -28,7 +28,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       <CardHeader className="text-center">
         <CardTitle className="text-xl">Welcome back</CardTitle>
         <CardDescription>
-          Sign in or create an account to manage translation projects.
+          Sign in or create an account to manage localization projects.
         </CardDescription>
       </CardHeader>
       <CardContent>

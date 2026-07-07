@@ -35,7 +35,7 @@ export function ProjectList({ projects }: ProjectListProps) {
           <div className="max-w-sm space-y-1">
             <p className="text-sm font-medium">No projects yet</p>
             <p className="text-sm text-muted-foreground text-pretty">
-              Create one to get started with your first translation walkthrough.
+              Create one to get started with your first localized walkthrough.
             </p>
           </div>
           <CreateProjectDialog

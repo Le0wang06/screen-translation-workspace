@@ -1,7 +1,11 @@
 import OpenAI from "openai";
 
 import type { requireUser } from "@/lib/api/helpers";
-import { SCREENSHOTS_BUCKET } from "@/lib/storage/screenshots";
+import {
+  localizedScreenshotStoragePath,
+  parseScreenshotStoragePath,
+  SCREENSHOTS_BUCKET,
+} from "@/lib/storage/screenshots";
 
 type SupabaseClient = Awaited<ReturnType<typeof requireUser>>["supabase"];
 
@@ -12,17 +16,12 @@ export type ProcessStepInput = {
   targetLanguage: string;
 };
 
-export type TranslationBlock = {
-  source_text: string;
-  translated_text: string;
-};
-
 export type ProcessStepResult = {
   title: string;
   summary: string;
   source_language?: string;
   target_language: string;
-  blocks: TranslationBlock[];
+  translatedImagePath: string;
 };
 
 function getOpenAIClient() {
@@ -33,63 +32,126 @@ function getOpenAIClient() {
   return new OpenAI({ apiKey });
 }
 
-function buildPrompt(sourceLanguage: string | null | undefined, targetLanguage: string) {
+function buildLocalizationPrompt(
+  sourceLanguage: string | null | undefined,
+  targetLanguage: string,
+) {
   const sourceHint = sourceLanguage
-    ? `The visible UI text is primarily in ${sourceLanguage}.`
+    ? `The UI text is in ${sourceLanguage}.`
     : "Detect the source language from the screenshot.";
 
-  return `You are a UI translation assistant. Read this product screenshot and extract visible UI text.
+  return `Recreate this product UI screenshot as a new image.
 
 ${sourceHint}
-Translate all meaningful UI strings into ${targetLanguage}.
+Translate every visible UI label, button, heading, menu item, placeholder, and body text into ${targetLanguage}.
 
-Return JSON only with this exact shape:
+Requirements:
+- Keep the same layout, spacing, colors, icons, and overall design.
+- Only change readable UI copy into natural ${targetLanguage}.
+- Do not add watermarks, borders, or commentary.
+- Do not change logos or brand marks unless they contain translatable words.
+- Output one polished localized screenshot image.`;
+}
+
+function buildMetadataPrompt(targetLanguage: string) {
+  return `Look at this product screenshot and return JSON only:
 {
-  "title": "short screen title",
-  "summary": "one sentence describing what the user is doing on this screen",
-  "source_language": "iso code",
-  "target_language": "${targetLanguage}",
-  "blocks": [
-    { "source_text": "original visible text", "translated_text": "translation" }
-  ]
+  "title": "short screen title in ${targetLanguage}",
+  "summary": "one sentence in English describing what the user is doing on this screen",
+  "source_language": "iso code"
+}`;
 }
 
-Rules:
-- Include buttons, labels, headings, placeholders, and other visible UI copy.
-- Skip decorative text, logos, and watermarks.
-- Keep translations concise and natural for product UI.
-- Return an empty blocks array only if there is truly no readable UI text.`;
+function extractGeneratedImageBase64(
+  output: OpenAI.Responses.Response["output"],
+): string | null {
+  for (const item of output) {
+    if (item.type === "image_generation_call" && item.result) {
+      return item.result;
+    }
+  }
+  return null;
 }
 
-function parseProcessStepResult(
-  raw: string,
+async function generateLocalizedImage(
+  openai: OpenAI,
+  imageDataUrl: string,
+  sourceLanguage: string | null | undefined,
   targetLanguage: string,
-): ProcessStepResult {
-  const parsed = JSON.parse(raw) as Partial<ProcessStepResult>;
+) {
+  const response = await openai.responses.create({
+    model: "gpt-4o",
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: buildLocalizationPrompt(sourceLanguage, targetLanguage),
+          },
+          {
+            type: "input_image",
+            image_url: imageDataUrl,
+            detail: "high",
+          },
+        ],
+      },
+    ],
+    tools: [
+      {
+        type: "image_generation",
+        action: "edit",
+        quality: "high",
+      },
+    ],
+    tool_choice: { type: "image_generation" },
+  });
 
-  if (!parsed.title || !parsed.summary || !Array.isArray(parsed.blocks)) {
-    throw new Error("AI response missing required fields.");
+  const imageBase64 = extractGeneratedImageBase64(response.output);
+  if (!imageBase64) {
+    throw new Error("AI did not return a localized screenshot.");
   }
 
-  const blocks = parsed.blocks
-    .filter(
-      (block): block is TranslationBlock =>
-        typeof block?.source_text === "string" &&
-        typeof block?.translated_text === "string" &&
-        block.source_text.trim().length > 0 &&
-        block.translated_text.trim().length > 0,
-    )
-    .map((block) => ({
-      source_text: block.source_text.trim(),
-      translated_text: block.translated_text.trim(),
-    }));
+  return imageBase64;
+}
+
+async function extractStepMetadata(
+  openai: OpenAI,
+  imageDataUrl: string,
+  targetLanguage: string,
+) {
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: buildMetadataPrompt(targetLanguage) },
+          {
+            type: "image_url",
+            image_url: { url: imageDataUrl },
+          },
+        ],
+      },
+    ],
+  });
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) {
+    throw new Error("AI returned empty metadata.");
+  }
+
+  const parsed = JSON.parse(content) as {
+    title?: string;
+    summary?: string;
+    source_language?: string;
+  };
 
   return {
-    title: parsed.title.trim(),
-    summary: parsed.summary.trim(),
+    title: parsed.title?.trim() || "Localized screen",
+    summary: parsed.summary?.trim() || "Localized UI screenshot",
     source_language: parsed.source_language?.trim(),
-    target_language: parsed.target_language?.trim() || targetLanguage,
-    blocks,
   };
 }
 
@@ -108,36 +170,46 @@ export async function processStep(
   const arrayBuffer = await file.arrayBuffer();
   const base64 = Buffer.from(arrayBuffer).toString("base64");
   const mime = file.type || "image/png";
+  const imageDataUrl = `data:${mime};base64,${base64}`;
 
   const openai = getOpenAIClient();
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: buildPrompt(input.sourceLanguage, input.targetLanguage),
-          },
-          {
-            type: "image_url",
-            image_url: {
-              url: `data:${mime};base64,${base64}`,
-            },
-          },
-        ],
-      },
-    ],
-  });
+  const [localizedImageBase64, metadata] = await Promise.all([
+    generateLocalizedImage(
+      openai,
+      imageDataUrl,
+      input.sourceLanguage,
+      input.targetLanguage,
+    ),
+    extractStepMetadata(openai, imageDataUrl, input.targetLanguage),
+  ]);
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) {
-    throw new Error("AI returned an empty response.");
+  const { projectId, flowId } = parseScreenshotStoragePath(input.imagePath);
+  const translatedImagePath = localizedScreenshotStoragePath(
+    projectId,
+    flowId,
+    input.stepId,
+    "png",
+  );
+
+  const localizedBuffer = Buffer.from(localizedImageBase64, "base64");
+  const { error: uploadError } = await supabase.storage
+    .from(SCREENSHOTS_BUCKET)
+    .upload(translatedImagePath, localizedBuffer, {
+      contentType: "image/png",
+      upsert: true,
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message);
   }
 
-  const result = parseProcessStepResult(content, input.targetLanguage);
+  const result: ProcessStepResult = {
+    title: metadata.title,
+    summary: metadata.summary,
+    source_language: metadata.source_language ?? input.sourceLanguage ?? undefined,
+    target_language: input.targetLanguage,
+    translatedImagePath,
+  };
 
   const { error: stepError } = await supabase
     .from("steps")
@@ -146,6 +218,7 @@ export async function processStep(
       summary: result.summary,
       source_language: result.source_language ?? input.sourceLanguage ?? null,
       target_language: result.target_language,
+      translated_image_url: translatedImagePath,
       status: "done",
       error_message: null,
       updated_at: new Date().toISOString(),
@@ -154,21 +227,6 @@ export async function processStep(
 
   if (stepError) {
     throw new Error(stepError.message);
-  }
-
-  if (result.blocks.length > 0) {
-    const { error: blocksError } = await supabase.from("step_blocks").insert(
-      result.blocks.map((block, index) => ({
-        step_id: input.stepId,
-        source_text: block.source_text,
-        translated_text: block.translated_text,
-        position: index,
-      })),
-    );
-
-    if (blocksError) {
-      throw new Error(blocksError.message);
-    }
   }
 
   return result;

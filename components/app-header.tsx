@@ -25,7 +25,7 @@ export async function AppHeader() {
           </div>
           <div className="min-w-0 leading-tight">
             <p className="truncate text-sm font-semibold tracking-tight">
-              Screen Translation
+              Screen Localization
             </p>
             <p className="truncate text-xs text-muted-foreground">Workspace</p>
           </div>

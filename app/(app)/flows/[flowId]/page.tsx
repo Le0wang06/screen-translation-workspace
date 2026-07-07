@@ -5,6 +5,7 @@ import { FlowUploadProvider } from "@/components/steps/flow-upload-provider";
 import { PageBreadcrumb } from "@/components/page-breadcrumb";
 import { createClient } from "@/lib/supabase/server";
 import { getScreenshotSignedUrl } from "@/lib/storage/signed-url";
+import { stepPreviewImagePath } from "@/lib/steps/display-image";
 
 type FlowPageProps = {
   params: Promise<{ flowId: string }>;
@@ -45,7 +46,7 @@ export default async function FlowPage({ params }: FlowPageProps) {
     await Promise.all(
       (steps ?? []).map(async (step) => [
         step.id,
-        await getScreenshotSignedUrl(supabase, step.image_url),
+        await getScreenshotSignedUrl(supabase, stepPreviewImagePath(step)),
       ]),
     ),
   );
@@ -64,7 +65,7 @@ export default async function FlowPage({ params }: FlowPageProps) {
           <div className="max-w-2xl space-y-2">
             <h1 className="text-3xl font-semibold tracking-tight">{flow.name}</h1>
             <p className="text-muted-foreground text-pretty">
-              Upload screenshots in order to build a translated walkthrough.
+              Upload screenshots to generate localized versions of each screen.
             </p>
           </div>
         </section>

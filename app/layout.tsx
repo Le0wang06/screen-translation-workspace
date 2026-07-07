@@ -15,11 +15,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Screen Translation Workspace",
-    template: "%s · Screen Translation",
+    default: "Screen Localization Workspace",
+    template: "%s · Screen Localization",
   },
   description:
-    "Turn product screenshots into organized, editable translation steps for your team.",
+    "Turn product screenshots into localized screen images for your team.",
 };
 
 export default function RootLayout({

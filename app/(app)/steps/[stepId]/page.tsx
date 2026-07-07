@@ -2,6 +2,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 
 import { PageBreadcrumb } from "@/components/page-breadcrumb";
+import { StepNavigation } from "@/components/steps/step-navigation";
 import { StepStatusBadge } from "@/components/steps/step-status-badge";
 import {
   Card,
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { getScreenshotSignedUrl } from "@/lib/storage/signed-url";
+import { stepPreviewImagePath } from "@/lib/steps/display-image";
 
 type StepPageProps = {
   params: Promise<{ stepId: string }>;
@@ -40,17 +42,33 @@ export default async function StepPage({ params }: StepPageProps) {
   const flow = step.flows;
   const project = step.projects;
 
-  const { data: blocks, error: blocksError } = await supabase
-    .from("step_blocks")
-    .select("*")
-    .eq("step_id", stepId)
-    .order("position", { ascending: true });
+  const originalImageUrl = await getScreenshotSignedUrl(supabase, step.image_url);
+  const localizedImageUrl = step.translated_image_url
+    ? await getScreenshotSignedUrl(supabase, step.translated_image_url)
+    : null;
 
-  if (blocksError) {
-    throw new Error(blocksError.message);
+  const { data: flowSteps, error: flowStepsError } = await supabase
+    .from("steps")
+    .select("*")
+    .eq("flow_id", flow.id)
+    .order("position", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (flowStepsError) {
+    throw new Error(flowStepsError.message);
   }
 
-  const imageUrl = await getScreenshotSignedUrl(supabase, step.image_url);
+  const stepThumbnailUrls = Object.fromEntries(
+    await Promise.all(
+      (flowSteps ?? []).map(async (flowStep) => [
+        flowStep.id,
+        await getScreenshotSignedUrl(
+          supabase,
+          stepPreviewImagePath(flowStep),
+        ),
+      ]),
+    ),
+  );
 
   return (
     <div className="flex flex-col gap-8">
@@ -60,12 +78,12 @@ export default async function StepPage({ params }: StepPageProps) {
             { label: "Dashboard", href: "/dashboard" },
             { label: project.name, href: `/projects/${project.id}` },
             { label: flow.name, href: `/flows/${flow.id}` },
-            { label: step.title || "Step" },
+            { label: step.title || "Screen" },
           ]}
         />
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-semibold tracking-tight text-balance">
-            {step.title || "Untitled step"}
+            {step.title || "Untitled screen"}
           </h1>
           <StepStatusBadge status={step.status} />
         </div>
@@ -81,65 +99,67 @@ export default async function StepPage({ params }: StepPageProps) {
         ) : null}
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+      <StepNavigation
+        steps={flowSteps ?? []}
+        currentStepId={stepId}
+        thumbnailUrls={stepThumbnailUrls}
+      />
+
+      <div className="grid gap-6 lg:grid-cols-2">
         <Card className="overflow-hidden border-border/70 shadow-sm">
           <CardHeader className="border-b border-border/60 bg-muted/20">
-            <CardTitle className="text-base">Screenshot</CardTitle>
+            <CardTitle className="text-base">Original</CardTitle>
+            <CardDescription>Uploaded screenshot</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            {imageUrl ? (
+            {originalImageUrl ? (
               <div className="relative aspect-[4/3] w-full bg-muted/20">
                 <Image
-                  src={imageUrl}
-                  alt={step.title || "Screenshot"}
+                  src={originalImageUrl}
+                  alt={step.title || "Original screenshot"}
                   fill
                   className="object-contain"
-                  sizes="(max-width: 1024px) 100vw, 60vw"
+                  sizes="(max-width: 1024px) 100vw, 50vw"
                   unoptimized
                   priority
                 />
               </div>
             ) : (
               <div className="flex aspect-[4/3] items-center justify-center text-sm text-muted-foreground">
-                {step.status === "processing"
-                  ? "Processing screenshot…"
-                  : "Screenshot unavailable"}
+                Original unavailable
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="border-border/70 shadow-sm">
+        <Card className="overflow-hidden border-border/70 shadow-sm">
           <CardHeader className="border-b border-border/60 bg-muted/20">
-            <CardTitle className="text-base">Translations</CardTitle>
+            <CardTitle className="text-base">Translated</CardTitle>
             <CardDescription>
               {step.status === "processing"
-                ? "AI is reading the screenshot and extracting UI text."
-                : `${blocks?.length ?? 0} text block${blocks?.length === 1 ? "" : "s"}`}
+                ? "AI is regenerating this screen in the target language."
+                : `UI recreated in ${step.target_language}`}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             {step.status === "processing" ? (
-              <div className="px-4 py-10 text-sm text-muted-foreground sm:px-6">
-                Translation in progress…
+              <div className="flex aspect-[4/3] items-center justify-center text-sm text-muted-foreground">
+                Generating translated screenshot…
               </div>
-            ) : blocks && blocks.length > 0 ? (
-              <ul className="divide-y divide-border/60">
-                {blocks.map((block) => (
-                  <li
-                    key={block.id}
-                    className="grid gap-2 px-4 py-4 sm:grid-cols-2 sm:px-6"
-                  >
-                    <p className="text-sm text-muted-foreground">
-                      {block.source_text}
-                    </p>
-                    <p className="text-sm font-medium">{block.translated_text}</p>
-                  </li>
-                ))}
-              </ul>
+            ) : localizedImageUrl ? (
+              <div className="relative aspect-[4/3] w-full bg-muted/20">
+                <Image
+                  src={localizedImageUrl}
+                  alt={step.title || "Translated screenshot"}
+                  fill
+                  className="object-contain"
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  unoptimized
+                />
+              </div>
             ) : (
-              <div className="px-4 py-10 text-sm text-muted-foreground sm:px-6">
-                No translated text blocks yet.
+              <div className="flex aspect-[4/3] items-center justify-center text-sm text-muted-foreground">
+                Translated screenshot not available yet.
               </div>
             )}
           </CardContent>
