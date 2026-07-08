@@ -115,41 +115,25 @@ async function sampleRegionColors(
   return { background: toRgb(bg), foreground: toRgb(fg) };
 }
 
-type Kind = NonNullable<UiTextStyle["kind"]>;
-
-// Target glyph size as a fraction of image height, per kind. Font size is
-// derived from the element KIND (stable) rather than the model's bbox height
-// (noisy), then shrunk to fit the available width.
-const KIND_FONT_FRACTION: Record<Kind, number> = {
-  heading: 0.046,
-  title: 0.032,
-  status: 0.03,
-  body: 0.026,
-  button: 0.028,
-  link: 0.028,
-};
-
-function targetFontSize(kind: Kind, imageHeight: number) {
-  const fraction = KIND_FONT_FRACTION[kind] ?? KIND_FONT_FRACTION.body;
-  return Math.max(10, Math.round(fraction * imageHeight));
-}
-
 function fitFontSize(
   ctx: ReturnType<ReturnType<typeof createCanvas>["getContext"]>,
   text: string,
-  target: number,
   maxWidth: number,
+  maxHeight: number,
   fontFamily: string,
   weight: UiTextStyle["font_weight"],
 ) {
-  let size = target;
-  const minSize = 9;
+  let size = Math.max(8, Math.floor(maxHeight * 0.72));
+  const minSize = 8;
 
-  while (size > minSize) {
+  while (size >= minSize) {
     ctx.font = `${weightToken(weight)} ${size}px ${fontFamily}`;
-    if (ctx.measureText(text).width <= maxWidth) return size;
+    if (ctx.measureText(text).width <= maxWidth - 2) {
+      return size;
+    }
     size -= 1;
   }
+
   return minSize;
 }
 
@@ -172,130 +156,69 @@ export async function overlayTranslatedText(
   const placements = await Promise.all(
     blocks.map(async (block) => {
       const rect = bboxToPixelRect(block, imageWidth, imageHeight);
-      const kind = block.style.kind ?? "body";
-
-      const target = targetFontSize(kind, imageHeight);
-      const family = fontFamily(targetLanguage, block.style.font_weight);
-      // Available width: the located box covers the original (English) extent,
-      // which is at least as wide as the shorter translation.
-      const availWidth = Math.max(rect.width, target) + 6;
-      const fontSize = fitFontSize(
-        ctx,
-        block.translated_text,
-        target,
-        availWidth,
-        family,
-        block.style.font_weight,
-      );
-
-      const isRightAction = kind === "button" || kind === "link";
-
-      // The model reports the text top slightly high and with some noise, so
-      // the mask is a generous band that extends mostly downward (where the
-      // original glyphs actually sit) to fully wipe them.
-      const padX = 3;
-      const topPad = isRightAction ? 0.5 : 0.4;
-      const heightFactor = isRightAction ? 2.9 : 2.5;
-      const maskTop = Math.max(0, rect.top - Math.round(fontSize * topPad));
-      const maskHeight = Math.min(
-        imageHeight - maskTop,
-        Math.round(fontSize * heightFactor),
-      );
-
-      ctx.font = `${weightToken(block.style.font_weight)} ${fontSize}px ${family}`;
-      const drawnWidth = ctx.measureText(block.translated_text).width;
-
-      let maskLeft: number;
-      let maskWidth: number;
-      if (isRightAction) {
-        // Right-side actions: cover the located box and lean toward the right
-        // edge where the original button/link renders.
-        maskLeft = Math.max(0, rect.left - padX);
-        maskWidth = Math.min(
-          imageWidth - maskLeft,
-          Math.max(rect.width, drawnWidth) + padX * 3,
-        );
-      } else if (kind === "heading") {
-        // Page title at top-left: cover from the left edge so no stray glyph
-        // (e.g. the "O" of Overview) survives.
-        maskLeft = 0;
-        maskWidth = Math.min(
-          imageWidth,
-          Math.max(rect.left + rect.width, rect.left + drawnWidth) +
-            Math.round(imageWidth * 0.04),
-        );
-      } else {
-        // Left-aligned text: the model often under-measures the original line
-        // width, so extend the mask rightward to wipe trailing English. The
-        // left column has nothing until the right-action column (~0.66W), so a
-        // wider dark band is invisible on the page background.
-        maskLeft = Math.max(0, rect.left - padX);
-        const coverRight = Math.max(
-          rect.left + rect.width,
-          rect.left + drawnWidth,
-        ) + Math.round(imageWidth * 0.06);
-        const rightLimit = Math.round(imageWidth * 0.63);
-        maskWidth = Math.min(imageWidth - maskLeft, coverRight) - maskLeft;
-        maskWidth = Math.min(maskWidth, rightLimit - maskLeft);
-        maskWidth = Math.max(maskWidth, drawnWidth + padX * 2);
-      }
-
       const colors = await sampleRegionColors(
         imageBuffer,
         imageWidth,
         imageHeight,
-        maskLeft,
-        maskTop,
-        maskWidth,
-        maskHeight,
+        rect.left,
+        rect.top,
+        rect.width,
+        rect.height,
+      );
+      const family = fontFamily(targetLanguage, block.style.font_weight);
+      const fontSize = fitFontSize(
+        ctx,
+        block.translated_text,
+        rect.width,
+        rect.height,
+        family,
+        block.style.font_weight,
+      );
+      ctx.font = `${weightToken(block.style.font_weight)} ${fontSize}px ${family}`;
+      const textWidth = Math.ceil(ctx.measureText(block.translated_text).width);
+
+      const maskWidth = Math.min(
+        imageWidth - rect.left,
+        Math.max(rect.width, textWidth + 4),
       );
 
       return {
         block,
-        kind,
-        rect,
-        mask: { left: maskLeft, top: maskTop, width: maskWidth, height: maskHeight },
+        rect: { ...rect, width: maskWidth },
         colors,
         fontSize,
         family,
-        drawnWidth,
+        textWidth,
       };
     }),
   );
 
-  for (const { mask, colors } of placements) {
+  for (const { rect, colors } of placements) {
     ctx.fillStyle = colors.background;
-    ctx.fillRect(mask.left, mask.top, mask.width, mask.height);
+    ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
   }
 
-  // Draw smallest boxes last so dense text wins any overlap.
-  const textOrder = [...placements].sort(
-    (a, b) => b.mask.width * b.mask.height - a.mask.width * a.mask.height,
-  );
-
-  for (const { block, kind, rect, mask, colors, fontSize, family } of textOrder) {
-    const isRightAction = kind === "button" || kind === "link";
+  for (const { block, rect, colors, fontSize, family } of placements) {
     const fg =
-      kind === "link"
+      block.style.kind === "link"
         ? block.style.color || "#58a6ff"
-        : kind === "button" || kind === "heading" || kind === "title"
-          ? "#e6edf3"
-          : colors.foreground;
+        : colors.foreground;
 
     ctx.fillStyle = fg;
     ctx.font = `${weightToken(block.style.font_weight)} ${fontSize}px ${family}`;
     ctx.textBaseline = "middle";
 
-    // After pixel-row snapping, y is at the true text top for all kinds.
-    const centerY = rect.top + Math.round(fontSize * 0.72);
+    const kind = block.style.kind ?? "body";
+    const y = rect.top + rect.height / 2;
 
     if (kind === "button" || block.style.align === "center") {
       ctx.textAlign = "center";
-      ctx.fillText(block.translated_text, rect.left + rect.width / 2, centerY);
+      ctx.fillText(block.translated_text, rect.left + rect.width / 2, y);
     } else {
       ctx.textAlign = "left";
-      ctx.fillText(block.translated_text, rect.left, centerY);
+      ctx.fillText(block.translated_text, rect.left + 1, y);
     }
+
     ctx.textAlign = "left";
   }
 
