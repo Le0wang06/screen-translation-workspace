@@ -41,16 +41,20 @@ Return JSON only:
   ]
 }
 
-bbox_1000 uses a 0-1000 grid on the screenshot (0,0 = top-left). Values must tightly wrap ONLY the pixels of source_text.
+- bbox_1000 uses a 0-1000 grid on the screenshot (0,0 = top-left). Values must tightly wrap ONLY the pixels of source_text.
+- Each block's bbox_1000 must sit exactly where source_text appears — translations will be painted into this same box
+- xmin/xmax are horizontal edges of the text; ymin/ymax are vertical edges
 
 Rules:
 - Measure each text element at its REAL pixel position in the image — never invent a grid or column
 - Typical single-line labels are narrow (xmax-xmin often 80-450 on a 1000-wide grid)
+- Right-side buttons/links usually have xmin between 550-950; left titles usually xmin 20-300
 - Include left-side titles, descriptions, status badges, right-side buttons, and blue links
-- Split "Title · Status" into separate blocks when colors differ
+- Split "Title · Status" into separate blocks when colors differ — status bbox wraps only the status word
 - style.kind: heading, title, body, status, button, link
-- Buttons use kind=button and include the full button label
-- Links use kind=link with blue text color`;
+- Buttons: kind=button, align=center, bbox wraps the full button chrome
+- Links: kind=link, blue color, bbox wraps only the link text
+- Descriptions: kind=body, bbox on the gray subtitle line only`;
 }
 
 function bboxFrom1000(values: number[]) {

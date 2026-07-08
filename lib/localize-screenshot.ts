@@ -1,9 +1,10 @@
 import OpenAI from "openai";
 import sharp from "sharp";
 
-import { extractUiText, MAX_ANALYSIS_WIDTH } from "@/lib/extract-ui-text";
+import { extractUiText } from "@/lib/extract-ui-text";
 import type { ImageOutputFormat } from "@/lib/image-format";
 import { overlayTranslatedText } from "@/lib/overlay-translated-text";
+import { refineUiBlocks } from "@/lib/refine-ui-blocks";
 import { bufferToDataUrl } from "@/lib/prepare-screenshot";
 import {
   PLACEHOLDER_STEP_SUMMARY,
@@ -41,16 +42,7 @@ async function encodeBuffer(
 }
 
 async function analysisImageDataUrl(imageBuffer: Buffer) {
-  const image = sharp(imageBuffer).rotate();
-  const metadata = await image.metadata();
-  const width = metadata.width ?? MAX_ANALYSIS_WIDTH;
-
-  const pipeline =
-    width > MAX_ANALYSIS_WIDTH
-      ? image.resize({ width: MAX_ANALYSIS_WIDTH, withoutEnlargement: true })
-      : image;
-
-  const buffer = await pipeline.png().toBuffer();
+  const buffer = await sharp(imageBuffer).rotate().png().toBuffer();
   return bufferToDataUrl(buffer, "image/png");
 }
 
@@ -106,7 +98,8 @@ export async function localizeScreenshot(
     input.notes,
   );
 
-  const styledBlocks = await refineBlockStyles(rotated, extraction.blocks);
+  const refinedBlocks = refineUiBlocks(extraction.blocks);
+  const styledBlocks = await refineBlockStyles(rotated, refinedBlocks);
   const overlaid = await overlayTranslatedText(
     rotated,
     styledBlocks,
