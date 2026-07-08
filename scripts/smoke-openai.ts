@@ -3,6 +3,7 @@
  * Run: npx tsx --env-file=.env.local scripts/smoke-openai.ts
  */
 import OpenAI from "openai";
+import sharp from "sharp";
 
 import { resolveSourceImageFormat } from "../lib/image-format";
 import {
@@ -12,7 +13,11 @@ import {
   PROCESS_IMAGE_QUALITY,
   PROCESS_STEP_RESPONSE_MODEL,
 } from "../lib/process-step-config";
-import { prepareScreenshot, bufferToDataUrl } from "../lib/prepare-screenshot";
+import {
+  cropTranslatedScreenshot,
+  prepareScreenshot,
+  bufferToDataUrl,
+} from "../lib/prepare-screenshot";
 
 async function main() {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -44,7 +49,7 @@ async function main() {
   await openai.models.list();
 
   console.log(
-    `[smoke] Pipeline: ${PROCESS_STEP_RESPONSE_MODEL} + ${PROCESS_IMAGE_MODEL} @ ${PROCESS_IMAGE_QUALITY}, output ${prepared.openAiFormat}`,
+    `[smoke] Pipeline: ${PROCESS_STEP_RESPONSE_MODEL} + ${PROCESS_IMAGE_MODEL} @ ${PROCESS_IMAGE_QUALITY}, canvas ${prepared.letterbox.size}`,
   );
 
   const started = Date.now();
@@ -56,13 +61,13 @@ async function main() {
         content: [
           {
             type: "input_text",
-            text: `Edit this UI screenshot in place. Translate visible UI text to natural Spanish. Keep layout, colors, icons, and spacing identical.`,
+            text: `Edit this UI screenshot in place. Translate visible UI text to natural Spanish. Keep the full frame, layout, colors, icons, and spacing identical.`,
           },
           { type: "input_image", image_url: imageDataUrl, detail: PROCESS_IMAGE_INPUT_DETAIL },
         ],
       },
     ],
-    tools: [buildImageGenerationTool(prepared.openAiFormat)],
+    tools: [buildImageGenerationTool(prepared.openAiFormat, prepared.letterbox.size)],
     tool_choice: { type: "image_generation" },
   });
 
@@ -74,8 +79,18 @@ async function main() {
     throw new Error("OpenAI did not return a localized image.");
   }
 
+  const cropped = await cropTranslatedScreenshot(
+    Buffer.from(imageBase64.result, "base64"),
+    prepared.letterbox,
+    prepared.openAiFormat,
+  );
+  const croppedMeta = await sharp(cropped).metadata();
+
   const imageMs = Date.now() - started;
   console.log(`[smoke] Image generated in ${(imageMs / 1000).toFixed(1)}s`);
+  console.log(
+    `[smoke] Output size: ${croppedMeta.width}x${croppedMeta.height} (content ${prepared.letterbox.crop.width}x${prepared.letterbox.crop.height})`,
+  );
 
   const metadataStarted = Date.now();
   const metadataResponse = await openai.chat.completions.create({

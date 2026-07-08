@@ -1,9 +1,11 @@
 import OpenAI from "openai";
 
 import type { requireUser } from "@/lib/api/helpers";
+import type { OpenAiImageSize } from "@/lib/openai-image-size";
 import { resolveSourceImageFormat } from "@/lib/image-format";
 import {
   bufferToDataUrl,
+  cropTranslatedScreenshot,
   prepareScreenshot,
 } from "@/lib/prepare-screenshot";
 import {
@@ -59,11 +61,11 @@ function buildLocalizationPrompt(
 
   const notesHint = notes?.trim() ? `\nReviewer notes: ${notes.trim()}` : "";
 
-  return `Edit this UI screenshot in place. Do not redesign the screen.
+  return `Edit this UI screenshot in place. Do not redesign or crop the frame.
 ${sourceHint}
 Translate all visible UI text into natural ${targetLanguage}.
 ${notesHint}
-Keep layout, colors, backgrounds, icons, spacing, and typography identical. Only replace readable UI copy.`;
+Keep the full screenshot visible: same layout, colors, backgrounds, icons, spacing, and typography. Only replace readable UI copy.`;
 }
 
 function buildMetadataPrompt(targetLanguage: string) {
@@ -88,6 +90,7 @@ async function generateLocalizedImage(
   sourceLanguage: string | null | undefined,
   targetLanguage: string,
   outputFormat: ReturnType<typeof resolveOutputFormat>,
+  size: OpenAiImageSize,
   notes?: string | null,
 ) {
   const response = await openai.responses.create({
@@ -108,7 +111,7 @@ async function generateLocalizedImage(
         ],
       },
     ],
-    tools: [buildImageGenerationTool(outputFormat)],
+    tools: [buildImageGenerationTool(outputFormat, size)],
     tool_choice: { type: "image_generation" },
   });
 
@@ -191,6 +194,7 @@ export async function processStep(
     input.sourceLanguage,
     input.targetLanguage,
     outputFormat,
+    prepared.letterbox.size,
     input.notes,
   );
 
@@ -202,7 +206,11 @@ export async function processStep(
     storageExtension,
   );
 
-  const localizedBuffer = Buffer.from(localizedImageBase64, "base64");
+  const localizedBuffer = await cropTranslatedScreenshot(
+    Buffer.from(localizedImageBase64, "base64"),
+    prepared.letterbox,
+    outputFormat,
+  );
   const { error: uploadError } = await supabase.storage
     .from(SCREENSHOTS_BUCKET)
     .upload(translatedImagePath, localizedBuffer, {

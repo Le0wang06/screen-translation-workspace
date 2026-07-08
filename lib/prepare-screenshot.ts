@@ -1,8 +1,12 @@
 import sharp, { type Sharp } from "sharp";
 
 import type { ImageOutputFormat } from "@/lib/image-format";
+import {
+  computeLetterboxPlan,
+  type LetterboxPlan,
+} from "@/lib/openai-image-size";
 
-export const SCREENSHOT_MAX_WIDTH = 1280;
+export const SCREENSHOT_MAX_DIMENSION = 2048;
 export const SCREENSHOT_QUALITY = 92;
 
 export type PreparedScreenshot = {
@@ -12,6 +16,7 @@ export type PreparedScreenshot = {
   storageExtension: string;
   width: number;
   height: number;
+  letterbox: LetterboxPlan;
 };
 
 async function encodeInFormat(
@@ -41,6 +46,38 @@ async function encodeInFormat(
   }
 }
 
+async function sampleBackgroundColor(pipeline: Sharp) {
+  const { data } = await pipeline
+    .clone()
+    .extract({ left: 0, top: 0, width: 1, height: 1 })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  return {
+    r: data[0] ?? 0,
+    g: data[1] ?? 0,
+    b: data[2] ?? 0,
+    alpha: 255,
+  };
+}
+
+function maybeDownscale(
+  width: number,
+  height: number,
+): { width: number; height: number } {
+  const longestEdge = Math.max(width, height);
+  if (longestEdge <= SCREENSHOT_MAX_DIMENSION) {
+    return { width, height };
+  }
+
+  const scale = SCREENSHOT_MAX_DIMENSION / longestEdge;
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+}
+
 export async function prepareScreenshot(
   input: Buffer | ArrayBuffer,
   sourceMime: string,
@@ -51,24 +88,73 @@ export async function prepareScreenshot(
 
   const image = sharp(buffer, { animated: sourceMime === "image/gif" }).rotate();
   const metadata = await image.metadata();
-  const width = metadata.width ?? SCREENSHOT_MAX_WIDTH;
+  const sourceWidth = metadata.width ?? 1024;
+  const sourceHeight = metadata.height ?? 1024;
+  const downscaled = maybeDownscale(sourceWidth, sourceHeight);
 
-  const pipeline =
-    width > SCREENSHOT_MAX_WIDTH
-      ? image.resize({ width: SCREENSHOT_MAX_WIDTH, withoutEnlargement: true })
-      : image;
+  const resized = image.resize(downscaled.width, downscaled.height, {
+    fit: "inside",
+    withoutEnlargement: true,
+  });
+  const resizedMeta = await resized.metadata();
+  const contentWidth = resizedMeta.width ?? downscaled.width;
+  const contentHeight = resizedMeta.height ?? downscaled.height;
+  const letterbox = computeLetterboxPlan(contentWidth, contentHeight);
+  const background = await sampleBackgroundColor(image);
+
+  const pipeline = resized.extend({
+    top: letterbox.crop.top,
+    bottom:
+      letterbox.canvasHeight - letterbox.crop.top - letterbox.crop.height,
+    left: letterbox.crop.left,
+    right:
+      letterbox.canvasWidth - letterbox.crop.left - letterbox.crop.width,
+    background,
+  });
 
   const { buffer: output, mime } = await encodeInFormat(pipeline, openAiFormat);
-  const outputMeta = await sharp(output).metadata();
 
   return {
     buffer: output,
     mime,
     openAiFormat,
     storageExtension,
-    width: outputMeta.width ?? width,
-    height: outputMeta.height ?? width,
+    width: letterbox.canvasWidth,
+    height: letterbox.canvasHeight,
+    letterbox,
   };
+}
+
+export async function cropTranslatedScreenshot(
+  input: Buffer,
+  letterbox: LetterboxPlan,
+  openAiFormat: ImageOutputFormat,
+): Promise<Buffer> {
+  const image = sharp(input);
+  const metadata = await image.metadata();
+  const outputWidth = metadata.width ?? letterbox.canvasWidth;
+  const outputHeight = metadata.height ?? letterbox.canvasHeight;
+
+  const scaleX = outputWidth / letterbox.canvasWidth;
+  const scaleY = outputHeight / letterbox.canvasHeight;
+
+  const left = Math.round(letterbox.crop.left * scaleX);
+  const top = Math.round(letterbox.crop.top * scaleY);
+  const width = Math.min(
+    outputWidth - left,
+    Math.round(letterbox.crop.width * scaleX),
+  );
+  const height = Math.min(
+    outputHeight - top,
+    Math.round(letterbox.crop.height * scaleY),
+  );
+
+  const { buffer } = await encodeInFormat(
+    image.extract({ left, top, width, height }),
+    openAiFormat,
+  );
+
+  return buffer;
 }
 
 export function bufferToDataUrl(buffer: Buffer, mime: string) {

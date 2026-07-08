@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { Image } from "https://deno.land/x/imagescript@1.3.0/mod.ts";
 
 type ProcessStepPayload = {
   stepId: string;
@@ -7,6 +8,15 @@ type ProcessStepPayload = {
   sourceLanguage?: string | null;
   targetLanguage: string;
   notes?: string | null;
+};
+
+type OpenAiImageSize = "1024x1024" | "1536x1024" | "1024x1536";
+
+type LetterboxPlan = {
+  size: OpenAiImageSize;
+  canvasWidth: number;
+  canvasHeight: number;
+  crop: { left: number; top: number; width: number; height: number };
 };
 
 const RESPONSE_MODEL = Deno.env.get("PROCESS_STEP_RESPONSE_MODEL") ?? "gpt-4o-mini";
@@ -22,6 +32,83 @@ const IMAGE_INPUT_DETAIL =
   "auto";
 
 type OutputFormat = "png" | "jpeg" | "webp";
+
+const OPENAI_CANVAS_SIZES: Record<OpenAiImageSize, { width: number; height: number }> = {
+  "1024x1024": { width: 1024, height: 1024 },
+  "1536x1024": { width: 1536, height: 1024 },
+  "1024x1536": { width: 1024, height: 1536 },
+};
+
+function pickOpenAiImageSize(width: number, height: number): OpenAiImageSize {
+  const ratio = width / height;
+  if (ratio > 1.2) return "1536x1024";
+  if (ratio < 0.83) return "1024x1536";
+  return "1024x1024";
+}
+
+function computeLetterboxPlan(width: number, height: number): LetterboxPlan {
+  const size = pickOpenAiImageSize(width, height);
+  const { width: canvasWidth, height: canvasHeight } = OPENAI_CANVAS_SIZES[size];
+  const scale = Math.min(canvasWidth / width, canvasHeight / height);
+  const scaledWidth = Math.max(1, Math.round(width * scale));
+  const scaledHeight = Math.max(1, Math.round(height * scale));
+  const left = Math.round((canvasWidth - scaledWidth) / 2);
+  const top = Math.round((canvasHeight - scaledHeight) / 2);
+
+  return {
+    size,
+    canvasWidth,
+    canvasHeight,
+    crop: { left, top, width: scaledWidth, height: scaledHeight },
+  };
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+async function prepareScreenshot(bytes: Uint8Array) {
+  const image = await Image.decode(bytes);
+  const maxDimension = 2048;
+  const longestEdge = Math.max(image.width, image.height);
+  const scale = longestEdge > maxDimension ? maxDimension / longestEdge : 1;
+  const resized = image.resize(
+    Math.max(1, Math.round(image.width * scale)),
+    Math.max(1, Math.round(image.height * scale)),
+  );
+  const letterbox = computeLetterboxPlan(resized.width, resized.height);
+  const canvas = new Image(letterbox.canvasWidth, letterbox.canvasHeight);
+  canvas.fill(resized.getPixelAt(0, 0));
+  canvas.composite(resized, letterbox.crop.left, letterbox.crop.top);
+
+  return {
+    bytes: await canvas.encode(),
+    letterbox,
+  };
+}
+
+async function cropTranslatedScreenshot(bytes: Uint8Array, letterbox: LetterboxPlan) {
+  const image = await Image.decode(bytes);
+  const scaleX = image.width / letterbox.canvasWidth;
+  const scaleY = image.height / letterbox.canvasHeight;
+  const left = Math.round(letterbox.crop.left * scaleX);
+  const top = Math.round(letterbox.crop.top * scaleY);
+  const width = Math.min(
+    image.width - left,
+    Math.round(letterbox.crop.width * scaleX),
+  );
+  const height = Math.min(
+    image.height - top,
+    Math.round(letterbox.crop.height * scaleY),
+  );
+
+  return await image.crop(left, top, width, height).encode();
+}
 
 function extensionFromPath(path: string) {
   const match = path.match(/\.([^.]+)$/i);
@@ -79,11 +166,11 @@ function buildLocalizationPrompt(
 
   const notesHint = notes?.trim() ? `\nReviewer notes: ${notes.trim()}` : "";
 
-  return `Edit this UI screenshot in place. Do not redesign the screen.
+  return `Edit this UI screenshot in place. Do not redesign or crop the frame.
 ${sourceHint}
 Translate all visible UI text into natural ${targetLanguage}.
 ${notesHint}
-Keep layout, colors, backgrounds, icons, spacing, and typography identical. Only replace readable UI copy.`;
+Keep the full screenshot visible: same layout, colors, backgrounds, icons, spacing, and typography. Only replace readable UI copy.`;
 }
 
 function buildMetadataPrompt(targetLanguage: string) {
@@ -140,9 +227,10 @@ Deno.serve(async (request: Request) => {
   }
 
   const arrayBuffer = await file.arrayBuffer();
-  const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+  const sourceBytes = new Uint8Array(arrayBuffer);
   const sourceFormat = resolveSourceImageFormat(payload.imagePath, file.type);
-  const imageDataUrl = `data:${sourceFormat.mime};base64,${base64}`;
+  const prepared = await prepareScreenshot(sourceBytes);
+  const imageDataUrl = `data:image/png;base64,${bytesToBase64(prepared.bytes)}`;
 
   const imageResponse = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -174,6 +262,7 @@ Deno.serve(async (request: Request) => {
           action: "edit",
           model: IMAGE_MODEL,
           quality: IMAGE_QUALITY,
+          size: prepared.letterbox.size,
           output_format: sourceFormat.outputFormat,
           ...(sourceFormat.outputFormat === "jpeg" || sourceFormat.outputFormat === "webp"
             ? { output_compression: IMAGE_COMPRESSION }
@@ -225,7 +314,8 @@ Deno.serve(async (request: Request) => {
     payload.stepId,
     sourceFormat.storageExtension,
   );
-  const binary = Uint8Array.from(atob(imageBase64), (char) => char.charCodeAt(0));
+  const generatedBytes = Uint8Array.from(atob(imageBase64), (char) => char.charCodeAt(0));
+  const binary = await cropTranslatedScreenshot(generatedBytes, prepared.letterbox);
 
   const { error: uploadError } = await supabase.storage
     .from("screenshots")

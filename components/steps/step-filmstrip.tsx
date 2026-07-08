@@ -169,7 +169,7 @@ export function StepFilmstrip({
                       src={thumbnailUrl}
                       alt={step.title || `Screen ${index + 1}`}
                       fill
-                      className="object-cover object-top"
+                      className="object-contain object-top"
                       sizes="160px"
                       unoptimized
                     />

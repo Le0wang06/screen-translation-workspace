@@ -1,4 +1,5 @@
 import type { ImageOutputFormat } from "@/lib/image-format";
+import type { OpenAiImageSize } from "@/lib/openai-image-size";
 
 export const PROCESS_STEP_RESPONSE_MODEL =
   process.env.PROCESS_STEP_RESPONSE_MODEL ?? "gpt-4o-mini";
@@ -25,7 +26,10 @@ export const PROCESS_IMAGE_OUTPUT_COMPRESSION = Number(
   process.env.PROCESS_IMAGE_OUTPUT_COMPRESSION ?? "88",
 );
 
-export function buildImageGenerationTool(outputFormat: ImageOutputFormat) {
+export function buildImageGenerationTool(
+  outputFormat: ImageOutputFormat,
+  size: OpenAiImageSize,
+) {
   const format = PROCESS_IMAGE_OUTPUT_FORMAT_OVERRIDE ?? outputFormat;
 
   return {
@@ -34,6 +38,7 @@ export function buildImageGenerationTool(outputFormat: ImageOutputFormat) {
     model: PROCESS_IMAGE_MODEL,
     quality: PROCESS_IMAGE_QUALITY,
     output_format: format,
+    size,
     ...(format === "jpeg" || format === "webp"
       ? { output_compression: PROCESS_IMAGE_OUTPUT_COMPRESSION }
       : {}),

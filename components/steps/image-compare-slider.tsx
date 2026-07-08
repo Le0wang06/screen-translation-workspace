@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -36,7 +35,7 @@ export function ImageCompareSlider({
     <div className={cn("space-y-3", className)}>
       <div
         ref={containerRef}
-        className="relative aspect-[4/3] w-full select-none overflow-hidden rounded-lg border border-border/60 bg-muted/20"
+        className="relative w-full select-none overflow-hidden rounded-lg border border-border/60 bg-muted/20"
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId);
           updatePosition(event.clientX);
@@ -49,26 +48,22 @@ export function ImageCompareSlider({
           event.currentTarget.releasePointerCapture(event.pointerId);
         }}
       >
-        <Image
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={translatedUrl}
           alt={translatedAlt}
-          fill
-          className="object-contain"
-          sizes="(max-width: 1024px) 100vw, 80vw"
-          unoptimized
+          className="block h-auto w-full"
           draggable={false}
         />
         <div
           className="absolute inset-0 overflow-hidden"
           style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
         >
-          <Image
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             src={originalUrl}
             alt={originalAlt}
-            fill
-            className="object-contain"
-            sizes="(max-width: 1024px) 100vw, 80vw"
-            unoptimized
+            className="block h-auto w-full"
             draggable={false}
           />
         </div>

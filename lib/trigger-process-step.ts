@@ -29,10 +29,11 @@ export async function triggerProcessStep(
   supabase: SupabaseClient,
   input: TriggerProcessStepInput,
 ) {
+  const useEdgeFunction = process.env.PROCESS_USE_EDGE_FUNCTION === "true";
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (supabaseUrl && serviceRoleKey) {
+  if (useEdgeFunction && supabaseUrl && serviceRoleKey) {
     try {
       const response = await fetch(`${supabaseUrl}/functions/v1/process-step`, {
         method: "POST",

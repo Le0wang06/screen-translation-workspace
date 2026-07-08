@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import { Maximize2, PanelsLeftRight, SplitSquareHorizontal } from "lucide-react";
 
@@ -163,8 +162,8 @@ export function StepView({
             title="Translated"
             description={
               step.status === "processing"
-                ? "AI is regenerating this screen in the target language."
-                : `UI recreated in ${step.target_language}`
+                ? "AI is translating text on this screen."
+                : `Text translated to ${step.target_language}`
             }
             imageUrl={translatedImageUrl}
             alt={step.title || "Translated screenshot"}
@@ -228,14 +227,12 @@ function ScreenCard({
         {processing ? (
           <ProcessingImagePlaceholder originalImageUrl={processingOriginalUrl} />
         ) : imageUrl ? (
-          <div className="relative aspect-[4/3] w-full bg-muted/20">
-            <Image
+          <div className="relative w-full bg-muted/20">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={imageUrl}
               alt={alt}
-              fill
-              className="object-contain animate-in fade-in duration-500"
-              sizes="(max-width: 1024px) 100vw, 50vw"
-              unoptimized
+              className="block h-auto w-full animate-in fade-in duration-500"
             />
           </div>
         ) : (
