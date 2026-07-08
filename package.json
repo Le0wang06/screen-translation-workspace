@@ -10,17 +10,12 @@
     "db:types": "supabase gen types typescript --linked > lib/database.types.ts",
     "db:push": "supabase db push",
     "smoke:openai": "npx tsx --env-file=.env.local scripts/smoke-openai.ts",
-    "smoke:overlay": "npx tsx --env-file=.env.local scripts/smoke-overlay.ts",
-    "smoke:imagegen": "npx tsx --env-file=.env.local scripts/smoke-imagegen.ts",
+    "smoke:localize": "npx tsx --env-file=.env.local scripts/smoke-localize.ts",
     "bench:localize": "LOCALIZE_DEBUG=1 npx tsx --env-file=.env.local scripts/bench-localize.ts",
-    "benchmark:images": "npx tsx --env-file=.env.local scripts/benchmark-image-models.ts",
     "smoke:day3": "npx tsx --env-file=.env.local scripts/smoke-day3.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
-    "@fontsource/inter": "^5.2.8",
-    "@fontsource/noto-sans-sc": "^5.2.9",
-    "@napi-rs/canvas": "^1.0.2",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.110.0",
     "class-variance-authority": "^0.7.1",
@@ -43,6 +38,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
+    "tsx": "^4.23.0",
     "typescript": "^5"
   }
 }

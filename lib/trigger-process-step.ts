@@ -33,7 +33,7 @@ export async function triggerProcessStep(
   supabase: SupabaseClient,
   input: TriggerProcessStepInput,
 ) {
-  // Text-overlay localization requires sharp + canvas and runs in Next.js only.
+  // Direct image localization runs in Next.js so it can use the OpenAI SDK.
   after(async () => {
     await runProcessStepInBackground(input);
   });

@@ -31,6 +31,7 @@ async function main() {
     const started = Date.now();
     const result = await localizeScreenshot(openai, sourceBuffer, {
       targetLanguage: "zh",
+      sourceMime: "image/png",
       openAiFormat: "png",
     });
     const seconds = (Date.now() - started) / 1000;

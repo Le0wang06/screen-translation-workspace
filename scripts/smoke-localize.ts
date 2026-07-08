@@ -1,6 +1,6 @@
 /**
- * Overlay localization smoke test.
- * Run: npx tsx --env-file=.env.local scripts/smoke-overlay.ts [image-path]
+ * Direct image localization smoke test.
+ * Run: npx tsx --env-file=.env.local scripts/smoke-localize.ts [image-path]
  */
 import fs from "fs";
 import OpenAI from "openai";
@@ -28,20 +28,20 @@ async function main() {
   const sourceFormat = resolveSourceImageFormat(path.basename(imagePath), "image/png");
   const openai = new OpenAI({ apiKey });
 
-  console.log(`[smoke] Localizing ${imagePath} -> zh via text overlay…`);
+  console.log(`[smoke] Localizing ${imagePath} -> zh with direct image edit`);
   const started = Date.now();
 
   const result = await localizeScreenshot(openai, sourceBuffer, {
     targetLanguage: "zh",
+    sourceMime: sourceFormat.mime,
     openAiFormat: sourceFormat.openAiFormat,
   });
 
-  const outputPath = path.join(process.cwd(), "tmp-overlay-smoke.png");
-  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  const outputPath = path.join(process.cwd(), "tmp-localize-smoke.png");
   fs.writeFileSync(outputPath, result.buffer);
 
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
-  console.log("\n✅ Overlay smoke test passed");
+  console.log("\nDirect localization smoke test passed");
   console.log(`   Time:    ${seconds}s`);
   console.log(`   Title:   ${result.title}`);
   console.log(`   Summary: ${result.summary}`);
@@ -49,7 +49,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("\n❌ Overlay smoke test failed");
+  console.error("\nDirect localization smoke test failed");
   console.error(error instanceof Error ? error.message : error);
   process.exit(1);
 });

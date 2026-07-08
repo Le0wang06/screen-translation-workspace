@@ -64,6 +64,7 @@ export async function processStep(
     sourceLanguage: input.sourceLanguage,
     targetLanguage: input.targetLanguage,
     notes: input.notes,
+    sourceMime: sourceFormat.mime,
     openAiFormat: outputFormat,
   });
 
