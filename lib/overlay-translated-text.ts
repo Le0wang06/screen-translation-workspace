@@ -3,7 +3,10 @@ import fs from "fs";
 import path from "path";
 import sharp from "sharp";
 
+import { loadImagePixels } from "@/lib/refine-text-box";
+import type { ImagePixels, Rgb } from "@/lib/refine-text-box";
 import { bboxToPixelRect } from "@/lib/refine-ui-blocks";
+import { snapBlocksToRows } from "@/lib/snap-blocks-to-rows";
 import type { UiTextBlock, UiTextStyle } from "@/lib/ui-text-types";
 
 let fontsRegistered = false;
@@ -76,65 +79,77 @@ function weightToken(weight?: UiTextStyle["font_weight"]) {
   return "normal";
 }
 
-type SampledColors = { background: string; foreground: string };
-
-async function sampleRegionColors(
-  imageBuffer: Buffer,
-  imageWidth: number,
-  imageHeight: number,
-  left: number,
-  top: number,
-  width: number,
-  height: number,
-): Promise<SampledColors> {
-  const x = Math.round(Math.min(imageWidth - 1, Math.max(0, left)));
-  const y = Math.round(Math.min(imageHeight - 1, Math.max(0, top)));
-  const w = Math.max(1, Math.round(Math.min(width, imageWidth - x)));
-  const h = Math.max(1, Math.round(Math.min(height, imageHeight - y)));
-
-  const { data, info } = await sharp(imageBuffer)
-    .extract({ left: x, top: y, width: w, height: h })
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const pixels: { luma: number; r: number; g: number; b: number }[] = [];
-  for (let i = 0; i < data.length; i += info.channels) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    pixels.push({ luma: 0.2126 * r + 0.7152 * g + 0.0722 * b, r, g, b });
-  }
-
-  pixels.sort((a, b) => a.luma - b.luma);
-  const bg = pixels[Math.floor(pixels.length * 0.2)] ?? pixels[0];
-  const fg = pixels[Math.floor(pixels.length * 0.9)] ?? pixels[pixels.length - 1];
-
-  const toRgb = (p: { r: number; g: number; b: number }) =>
-    `rgb(${p.r}, ${p.g}, ${p.b})`;
-
-  return { background: toRgb(bg), foreground: toRgb(fg) };
+function rgb(c: { r: number; g: number; b: number }) {
+  return `rgb(${c.r}, ${c.g}, ${c.b})`;
 }
 
+function hexToRgb(hex: string | undefined, fallback: { r: number; g: number; b: number }) {
+  if (!hex) return fallback;
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return fallback;
+  const n = parseInt(m[1], 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+/**
+ * Start at the target size (derived from the original text height) and shrink
+ * only until the translation fits the available width.
+ */
 function fitFontSize(
   ctx: ReturnType<ReturnType<typeof createCanvas>["getContext"]>,
   text: string,
+  target: number,
   maxWidth: number,
-  maxHeight: number,
-  fontFamily: string,
+  family: string,
   weight: UiTextStyle["font_weight"],
 ) {
-  let size = Math.max(8, Math.floor(maxHeight * 0.72));
+  let size = Math.max(9, target);
   const minSize = 8;
-
   while (size >= minSize) {
-    ctx.font = `${weightToken(weight)} ${size}px ${fontFamily}`;
-    if (ctx.measureText(text).width <= maxWidth - 2) {
-      return size;
-    }
+    ctx.font = `${weightToken(weight)} ${size}px ${family}`;
+    if (ctx.measureText(text).width <= maxWidth) return size;
     size -= 1;
   }
-
   return minSize;
+}
+
+/**
+ * Robust local background: the most common luma bucket inside the box. On the
+ * flat fills used by real UIs this is the exact background, so masks vanish.
+ */
+function sampleBackground(
+  pixels: ImagePixels,
+  box: { left: number; top: number; width: number; height: number },
+): Rgb {
+  const { data, width, height, channels } = pixels;
+  const x0 = Math.max(0, box.left);
+  const y0 = Math.max(0, box.top);
+  const x1 = Math.min(width, box.left + box.width);
+  const y1 = Math.min(height, box.top + box.height);
+  const buckets = new Map<number, { c: number; r: number; g: number; b: number }>();
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      const i = (y * width + x) * channels;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const key = Math.round((0.2126 * r + 0.7152 * g + 0.0722 * b) / 8);
+      const e = buckets.get(key) ?? { c: 0, r: 0, g: 0, b: 0 };
+      e.c++;
+      e.r += r;
+      e.g += g;
+      e.b += b;
+      buckets.set(key, e);
+    }
+  }
+  let best: { c: number; r: number; g: number; b: number } | null = null;
+  for (const e of buckets.values()) if (!best || e.c > best.c) best = e;
+  if (!best) return { r: 13, g: 17, b: 23 };
+  return {
+    r: Math.round(best.r / best.c),
+    g: Math.round(best.g / best.c),
+    b: Math.round(best.b / best.c),
+  };
 }
 
 export async function overlayTranslatedText(
@@ -147,78 +162,89 @@ export async function overlayTranslatedText(
   const metadata = await sharp(imageBuffer).metadata();
   const imageWidth = metadata.width ?? 1;
   const imageHeight = metadata.height ?? 1;
+  const cjk = usesCjk(targetLanguage);
+
+  const pixels = await loadImagePixels(imageBuffer);
+  const snapped = snapBlocksToRows(pixels, blocks, imageWidth, imageHeight);
 
   const image = await loadImage(imageBuffer);
   const canvas = createCanvas(imageWidth, imageHeight);
   const ctx = canvas.getContext("2d");
   ctx.drawImage(image, 0, 0, imageWidth, imageHeight);
 
-  const placements = await Promise.all(
-    blocks.map(async (block) => {
-      const rect = bboxToPixelRect(block, imageWidth, imageHeight);
-      const colors = await sampleRegionColors(
-        imageBuffer,
-        imageWidth,
-        imageHeight,
-        rect.left,
-        rect.top,
-        rect.width,
-        rect.height,
-      );
-      const family = fontFamily(targetLanguage, block.style.font_weight);
-      const fontSize = fitFontSize(
-        ctx,
-        block.translated_text,
-        rect.width,
-        rect.height,
-        family,
-        block.style.font_weight,
-      );
-      ctx.font = `${weightToken(block.style.font_weight)} ${fontSize}px ${family}`;
-      const textWidth = Math.ceil(ctx.measureText(block.translated_text).width);
+  const placements = snapped.map((block) => {
+    const box = bboxToPixelRect(block, imageWidth, imageHeight);
+    const background = block.style.background
+      ? hexToRgb(block.style.background, { r: 13, g: 17, b: 23 })
+      : sampleBackground(pixels, box);
+    const foreground = hexToRgb(block.style.color, { r: 230, g: 237, b: 243 });
+    const family = fontFamily(targetLanguage, block.style.font_weight);
 
-      const maskWidth = Math.min(
-        imageWidth - rect.left,
-        Math.max(rect.width, textWidth + 4),
-      );
+    const center = box.left + box.width / 2;
+    const rightAligned =
+      block.style.align === "right" ||
+      ((block.style.kind === "button" || block.style.kind === "link") &&
+        center > imageWidth * 0.6);
 
-      return {
-        block,
-        rect: { ...rect, width: maskWidth },
-        colors,
-        fontSize,
-        family,
-        textWidth,
-      };
-    }),
-  );
+    const available =
+      (rightAligned ? box.left + box.width : imageWidth - box.left) - 2;
+    const target = Math.round(box.height * (cjk ? 0.92 : 0.98));
+    const fontSize = fitFontSize(
+      ctx,
+      block.translated_text,
+      target,
+      available,
+      family,
+      block.style.font_weight,
+    );
+    ctx.font = `${weightToken(block.style.font_weight)} ${fontSize}px ${family}`;
+    const textWidth = Math.ceil(ctx.measureText(block.translated_text).width);
 
-  for (const { rect, colors } of placements) {
-    ctx.fillStyle = colors.background;
-    ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
+    return { block, box, background, foreground, family, fontSize, textWidth, rightAligned };
+  });
+
+  // Pass 1: mask each original text box with its sampled local background.
+  // Vertical padding is generous (invisible on the flat fill) so slight box
+  // drift never leaves the original text peeking above or below.
+  for (const { box, background, textWidth, rightAligned } of placements) {
+    const padY = 4;
+    const padX = 3;
+    const maskTop = Math.max(0, box.top - padY);
+    const maskHeight = Math.min(imageHeight - maskTop, box.height + padY * 2);
+    const coverWidth = Math.max(box.width, textWidth + 4);
+
+    let maskLeft: number;
+    let maskWidth: number;
+    if (rightAligned) {
+      const right = Math.min(imageWidth, box.left + box.width + padX);
+      maskLeft = Math.max(0, right - coverWidth - padX);
+      maskWidth = right - maskLeft;
+    } else {
+      maskLeft = Math.max(0, box.left - padX);
+      maskWidth = Math.min(imageWidth - maskLeft, coverWidth + padX * 2);
+    }
+
+    ctx.fillStyle = rgb(background);
+    ctx.fillRect(maskLeft, maskTop, maskWidth, maskHeight);
   }
 
-  for (const { block, rect, colors, fontSize, family } of placements) {
+  // Pass 2: draw the translation in the original color at the box center.
+  for (const { block, box, foreground, fontSize, family, rightAligned } of placements) {
     const fg =
-      block.style.kind === "link"
-        ? block.style.color || "#58a6ff"
-        : colors.foreground;
+      block.style.kind === "link" ? block.style.color || "#4493f8" : rgb(foreground);
 
     ctx.fillStyle = fg;
     ctx.font = `${weightToken(block.style.font_weight)} ${fontSize}px ${family}`;
     ctx.textBaseline = "middle";
+    const y = box.top + box.height / 2;
 
-    const kind = block.style.kind ?? "body";
-    const y = rect.top + rect.height / 2;
-
-    if (kind === "button" || block.style.align === "center") {
-      ctx.textAlign = "center";
-      ctx.fillText(block.translated_text, rect.left + rect.width / 2, y);
+    if (rightAligned) {
+      ctx.textAlign = "right";
+      ctx.fillText(block.translated_text, box.left + box.width, y);
     } else {
       ctx.textAlign = "left";
-      ctx.fillText(block.translated_text, rect.left + 1, y);
+      ctx.fillText(block.translated_text, box.left, y);
     }
-
     ctx.textAlign = "left";
   }
 
