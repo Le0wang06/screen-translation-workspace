@@ -3,9 +3,7 @@ import fs from "fs";
 import path from "path";
 import sharp from "sharp";
 
-import { loadImagePixels } from "@/lib/refine-text-box";
-import type { ImagePixels, Rgb } from "@/lib/refine-text-box";
-import { bboxToPixelRect } from "@/lib/refine-ui-blocks";
+import { loadImagePixels } from "@/lib/image-pixels";
 import { snapBlocksToRows } from "@/lib/snap-blocks-to-rows";
 import type { UiTextBlock, UiTextStyle } from "@/lib/ui-text-types";
 
@@ -83,14 +81,6 @@ function rgb(c: { r: number; g: number; b: number }) {
   return `rgb(${c.r}, ${c.g}, ${c.b})`;
 }
 
-function hexToRgb(hex: string | undefined, fallback: { r: number; g: number; b: number }) {
-  if (!hex) return fallback;
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return fallback;
-  const n = parseInt(m[1], 16);
-  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
-}
-
 /**
  * Start at the target size (derived from the original text height) and shrink
  * only until the translation fits the available width.
@@ -113,45 +103,6 @@ function fitFontSize(
   return minSize;
 }
 
-/**
- * Robust local background: the most common luma bucket inside the box. On the
- * flat fills used by real UIs this is the exact background, so masks vanish.
- */
-function sampleBackground(
-  pixels: ImagePixels,
-  box: { left: number; top: number; width: number; height: number },
-): Rgb {
-  const { data, width, height, channels } = pixels;
-  const x0 = Math.max(0, box.left);
-  const y0 = Math.max(0, box.top);
-  const x1 = Math.min(width, box.left + box.width);
-  const y1 = Math.min(height, box.top + box.height);
-  const buckets = new Map<number, { c: number; r: number; g: number; b: number }>();
-  for (let y = y0; y < y1; y++) {
-    for (let x = x0; x < x1; x++) {
-      const i = (y * width + x) * channels;
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-      const key = Math.round((0.2126 * r + 0.7152 * g + 0.0722 * b) / 8);
-      const e = buckets.get(key) ?? { c: 0, r: 0, g: 0, b: 0 };
-      e.c++;
-      e.r += r;
-      e.g += g;
-      e.b += b;
-      buckets.set(key, e);
-    }
-  }
-  let best: { c: number; r: number; g: number; b: number } | null = null;
-  for (const e of buckets.values()) if (!best || e.c > best.c) best = e;
-  if (!best) return { r: 13, g: 17, b: 23 };
-  return {
-    r: Math.round(best.r / best.c),
-    g: Math.round(best.g / best.c),
-    b: Math.round(best.b / best.c),
-  };
-}
-
 export async function overlayTranslatedText(
   imageBuffer: Buffer,
   blocks: UiTextBlock[],
@@ -165,82 +116,134 @@ export async function overlayTranslatedText(
   const cjk = usesCjk(targetLanguage);
 
   const pixels = await loadImagePixels(imageBuffer);
-  const snapped = snapBlocksToRows(pixels, blocks, imageWidth, imageHeight);
+  const snapped = snapBlocksToRows(pixels, blocks, imageHeight);
 
   const image = await loadImage(imageBuffer);
   const canvas = createCanvas(imageWidth, imageHeight);
   const ctx = canvas.getContext("2d");
   ctx.drawImage(image, 0, 0, imageWidth, imageHeight);
 
-  const placements = snapped.map((block) => {
-    const box = bboxToPixelRect(block, imageWidth, imageHeight);
-    const background = block.style.background
-      ? hexToRgb(block.style.background, { r: 13, g: 17, b: 23 })
-      : sampleBackground(pixels, box);
-    const foreground = hexToRgb(block.style.color, { r: 230, g: 237, b: 243 });
+  // Reference text height from plain (non-filled) rows. Buttons/badges report a
+  // tight glyph box too, but we size all UI labels off this shared baseline so
+  // the imprint stays visually consistent with body text.
+  const plainHeights = snapped
+    .filter((s) => !s.hasFill)
+    .map((s) => s.box.height)
+    .sort((a, b) => a - b);
+  const baseHeight = plainHeights.length
+    ? plainHeights[Math.floor(plainHeights.length / 2)]
+    : Math.round(imageHeight * 0.026);
+
+  const placements = snapped.map((snap) => {
+    const { block, box, container, background, foreground, hasFill } = snap;
     const family = fontFamily(targetLanguage, block.style.font_weight);
+    const kind = block.style.kind ?? "body";
 
     const center = box.left + box.width / 2;
     const rightAligned =
       block.style.align === "right" ||
-      ((block.style.kind === "button" || block.style.kind === "link") &&
-        center > imageWidth * 0.6);
+      ((kind === "button" || kind === "link" || hasFill) &&
+        center > imageWidth * 0.55);
 
-    const available =
-      (rightAligned ? box.left + box.width : imageWidth - box.left) - 2;
-    const target = Math.round(box.height * (cjk ? 0.92 : 0.98));
+    // Headings/titles are a touch larger; everything else tracks the baseline.
+    // Clamp to the measured glyph height so we never inflate a small label.
+    const scale = kind === "heading" || kind === "title" ? 1.18 : 1.0;
+    const refHeight = Math.min(
+      Math.max(box.height, baseHeight * 0.8),
+      baseHeight * 1.6,
+    );
+    const target = Math.round(refHeight * scale * (cjk ? 0.96 : 1.02));
+
+    // Keep text inside its element: buttons clamp to the container interior,
+    // plain rows can run to the image edge.
+    const inset = hasFill ? 6 : 2;
+    const available = rightAligned
+      ? (hasFill ? container.left + container.width : box.left + box.width) - inset
+      : imageWidth - box.left - inset;
+    const minLeft = hasFill ? container.left + inset : 0;
+
     const fontSize = fitFontSize(
       ctx,
       block.translated_text,
       target,
-      available,
+      available - minLeft,
       family,
       block.style.font_weight,
     );
     ctx.font = `${weightToken(block.style.font_weight)} ${fontSize}px ${family}`;
     const textWidth = Math.ceil(ctx.measureText(block.translated_text).width);
 
-    return { block, box, background, foreground, family, fontSize, textWidth, rightAligned };
+    return {
+      block,
+      box,
+      container,
+      background,
+      foreground,
+      family,
+      fontSize,
+      textWidth,
+      rightAligned,
+      hasFill,
+      kind,
+      minLeft,
+      available,
+    };
   });
 
-  // Pass 1: mask each original text box with its sampled local background.
-  // Vertical padding is generous (invisible on the flat fill) so slight box
-  // drift never leaves the original text peeking above or below.
-  for (const { box, background, textWidth, rightAligned } of placements) {
-    const padY = 4;
-    const padX = 3;
-    const maskTop = Math.max(0, box.top - padY);
-    const maskHeight = Math.min(imageHeight - maskTop, box.height + padY * 2);
-    const coverWidth = Math.max(box.width, textWidth + 4);
+  // Pass 1: mask only the original glyphs. For filled elements (buttons) we
+  // paint with the element's own fill and stay inside it, so borders and
+  // rounded corners survive untouched.
+  for (const p of placements) {
+    const { box, container, background, textWidth, rightAligned, hasFill } = p;
+    // The brightness band only covers the x-height core; ascenders/descenders
+    // sit just outside it. Plain rows are on a flat background, so we can mask
+    // generously in Y to catch them. Filled elements (buttons) must stay inside
+    // the fill so the border and rounded corners survive.
+    let maskTop: number;
+    let maskBottom: number;
+    if (hasFill) {
+      maskTop = Math.max(container.top + 2, box.top - 3);
+      maskBottom = Math.min(container.top + container.height - 2, box.top + box.height + 3);
+    } else {
+      maskTop = Math.max(0, box.top - 6);
+      maskBottom = Math.min(imageHeight, box.top + box.height + 6);
+    }
+    const maskHeight = Math.max(1, maskBottom - maskTop);
+
+    const coverWidth = Math.max(box.width, textWidth) + (hasFill ? 4 : 8);
+    const leftBound = hasFill ? container.left + 3 : 0;
+    const rightBound = hasFill ? container.left + container.width - 3 : imageWidth;
 
     let maskLeft: number;
-    let maskWidth: number;
+    let maskRight: number;
     if (rightAligned) {
-      const right = Math.min(imageWidth, box.left + box.width + padX);
-      maskLeft = Math.max(0, right - coverWidth - padX);
-      maskWidth = right - maskLeft;
+      maskRight = Math.min(rightBound, box.left + box.width + (hasFill ? 3 : 6));
+      maskLeft = Math.max(leftBound, maskRight - coverWidth);
     } else {
-      maskLeft = Math.max(0, box.left - padX);
-      maskWidth = Math.min(imageWidth - maskLeft, coverWidth + padX * 2);
+      maskLeft = Math.max(leftBound, box.left - (hasFill ? 3 : 6));
+      maskRight = Math.min(rightBound, maskLeft + coverWidth);
     }
 
     ctx.fillStyle = rgb(background);
-    ctx.fillRect(maskLeft, maskTop, maskWidth, maskHeight);
+    ctx.fillRect(maskLeft, maskTop, Math.max(1, maskRight - maskLeft), maskHeight);
   }
 
-  // Pass 2: draw the translation in the original color at the box center.
-  for (const { block, box, foreground, fontSize, family, rightAligned } of placements) {
-    const fg =
-      block.style.kind === "link" ? block.style.color || "#4493f8" : rgb(foreground);
+  // Pass 2: draw the translation in the original text color, vertically
+  // centered on the element it belongs to.
+  for (const p of placements) {
+    const { block, box, container, foreground, fontSize, family, rightAligned, hasFill } = p;
 
-    ctx.fillStyle = fg;
+    ctx.fillStyle = rgb(foreground);
     ctx.font = `${weightToken(block.style.font_weight)} ${fontSize}px ${family}`;
     ctx.textBaseline = "middle";
-    const y = box.top + box.height / 2;
+    const y = hasFill
+      ? container.top + container.height / 2
+      : box.top + box.height / 2;
 
     if (rightAligned) {
       ctx.textAlign = "right";
-      ctx.fillText(block.translated_text, box.left + box.width, y);
+      const right = hasFill ? p.available : box.left + box.width;
+      ctx.fillText(block.translated_text, right, y);
     } else {
       ctx.textAlign = "left";
       ctx.fillText(block.translated_text, box.left, y);
