@@ -1,4 +1,4 @@
-import { createCanvas, GlobalFonts, loadImage } from "@napi-rs/canvas";
+import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
 import fs from "fs";
 import path from "path";
 import sharp from "sharp";
@@ -40,16 +40,17 @@ function registerOverlayFonts() {
     }
   }
 
-  const notoFile = fs
-    .readdirSync(notoDir)
-    .find((f) => f.includes("chinese-simplified-400") && f.endsWith(".woff"));
-  if (notoFile) GlobalFonts.registerFromPath(path.join(notoDir, notoFile), "NotoSansSC");
-
-  const notoMedium = fs
-    .readdirSync(notoDir)
-    .find((f) => f.includes("chinese-simplified-500") && f.endsWith(".woff"));
-  if (notoMedium) {
-    GlobalFonts.registerFromPath(path.join(notoDir, notoMedium), "NotoSansSCMedium");
+  const notoFiles = fs.readdirSync(notoDir);
+  for (const [family, weightKey] of [
+    ["NotoSansSC", "chinese-simplified-400"],
+    ["NotoSansSCMedium", "chinese-simplified-500"],
+    ["NotoSansSCSemiBold", "chinese-simplified-600"],
+    ["NotoSansSCBold", "chinese-simplified-700"],
+  ] as const) {
+    const file = notoFiles.find(
+      (f) => f.includes(weightKey) && f.endsWith(".woff"),
+    );
+    if (file) GlobalFonts.registerFromPath(path.join(notoDir, file), family);
   }
 
   fontsRegistered = true;
@@ -61,17 +62,19 @@ function usesCjk(lang: string) {
 
 function fontFamily(lang: string, weight?: UiTextStyle["font_weight"]) {
   if (usesCjk(lang)) {
-    return weight === "semibold" || weight === "bold" || weight === "medium"
-      ? "NotoSansSCMedium"
-      : "NotoSansSC";
+    if (weight === "bold") return "NotoSansSCBold";
+    if (weight === "semibold") return "NotoSansSCSemiBold";
+    if (weight === "medium") return "NotoSansSCMedium";
+    return "NotoSansSC";
   }
-  if (weight === "semibold" || weight === "bold") return "InterSemiBold";
+  if (weight === "bold") return "InterSemiBold";
+  if (weight === "semibold") return "InterSemiBold";
   if (weight === "medium") return "InterMedium";
   return "Inter";
 }
 
 function weightToken(weight?: UiTextStyle["font_weight"]) {
-  if (weight === "bold") return "bold";
+  if (weight === "bold") return "700";
   if (weight === "semibold") return "600";
   if (weight === "medium") return "500";
   return "normal";
@@ -103,6 +106,13 @@ function fitFontSize(
   return minSize;
 }
 
+// Render everything oversized and downscale with sharp. The extra samples give
+// text the same smooth anti-aliasing the native UI has, so it reads as part of
+// the screenshot instead of a flat paste.
+const SS = 3;
+
+type Align = "left" | "center" | "right";
+
 export async function overlayTranslatedText(
   imageBuffer: Buffer,
   blocks: UiTextBlock[],
@@ -118,10 +128,11 @@ export async function overlayTranslatedText(
   const pixels = await loadImagePixels(imageBuffer);
   const snapped = snapBlocksToRows(pixels, blocks, imageHeight);
 
-  const image = await loadImage(imageBuffer);
-  const canvas = createCanvas(imageWidth, imageHeight);
+  // Transparent overlay layer at SS resolution. We only draw masks + text here
+  // and composite it over the pristine original, so nothing outside the text
+  // regions is ever touched.
+  const canvas = createCanvas(imageWidth * SS, imageHeight * SS);
   const ctx = canvas.getContext("2d");
-  ctx.drawImage(image, 0, 0, imageWidth, imageHeight);
 
   // Reference text height from plain (non-filled) rows. Buttons/badges report a
   // tight glyph box too, but we size all UI labels off this shared baseline so
@@ -140,38 +151,68 @@ export async function overlayTranslatedText(
     const kind = block.style.kind ?? "body";
 
     const center = box.left + box.width / 2;
-    const rightAligned =
-      block.style.align === "right" ||
-      ((kind === "button" || kind === "link" || hasFill) &&
-        center > imageWidth * 0.55);
+    // Filled elements (buttons/badges) center their label; right-side links and
+    // explicitly right-aligned text hug the right edge; everything else is
+    // left-aligned like normal body copy.
+    let align: Align;
+    if (hasFill) {
+      align = "center";
+    } else if (block.style.align === "right" || center > imageWidth * 0.55) {
+      align = "right";
+    } else {
+      align = "left";
+    }
 
     // Headings/titles are a touch larger; everything else tracks the baseline.
     // Clamp to the measured glyph height so we never inflate a small label.
-    const scale = kind === "heading" || kind === "title" ? 1.18 : 1.0;
+    const scale = kind === "heading" || kind === "title" ? 1.15 : 1.0;
     const refHeight = Math.min(
       Math.max(box.height, baseHeight * 0.8),
       baseHeight * 1.6,
     );
-    const target = Math.round(refHeight * scale * (cjk ? 0.96 : 1.02));
+    const target = Math.round(refHeight * scale * 1.02);
 
-    // Keep text inside its element: buttons clamp to the container interior,
-    // plain rows can run to the image edge.
+    // Width the translation is allowed to occupy before we shrink it.
     const inset = hasFill ? 6 : 2;
-    const available = rightAligned
-      ? (hasFill ? container.left + container.width : box.left + box.width) - inset
-      : imageWidth - box.left - inset;
-    const minLeft = hasFill ? container.left + inset : 0;
+    let available: number;
+    if (align === "center") {
+      available = container.width - inset * 2;
+    } else if (align === "right") {
+      available = hasFill
+        ? container.left + container.width - inset
+        : box.left + box.width;
+    } else {
+      available = imageWidth - box.left - inset;
+    }
 
     const fontSize = fitFontSize(
       ctx,
       block.translated_text,
       target,
-      available - minLeft,
+      available,
       family,
       block.style.font_weight,
     );
     ctx.font = `${weightToken(block.style.font_weight)} ${fontSize}px ${family}`;
-    const textWidth = Math.ceil(ctx.measureText(block.translated_text).width);
+    const textWidth = ctx.measureText(block.translated_text).width;
+
+    // Where the translation will actually be drawn (image-space, pre-SS).
+    let textLeft: number;
+    let textRight: number;
+    if (align === "center") {
+      const cx = container.left + container.width / 2;
+      textLeft = cx - textWidth / 2;
+      textRight = cx + textWidth / 2;
+    } else if (align === "right") {
+      const right = hasFill
+        ? container.left + container.width - inset
+        : box.left + box.width;
+      textRight = right;
+      textLeft = right - textWidth;
+    } else {
+      textLeft = box.left;
+      textRight = box.left + textWidth;
+    }
 
     return {
       block,
@@ -182,74 +223,94 @@ export async function overlayTranslatedText(
       family,
       fontSize,
       textWidth,
-      rightAligned,
+      align,
       hasFill,
       kind,
-      minLeft,
-      available,
+      textLeft,
+      textRight,
     };
   });
 
-  // Pass 1: mask only the original glyphs. For filled elements (buttons) we
-  // paint with the element's own fill and stay inside it, so borders and
-  // rounded corners survive untouched.
+  // Pass 1: mask the union of the original glyphs and the new text, so the
+  // English is fully hidden and the translation lands on clean background.
+  // Filled elements are masked with their own fill, clamped inside the element
+  // so borders and rounded corners survive.
   for (const p of placements) {
-    const { box, container, background, textWidth, rightAligned, hasFill } = p;
-    // The brightness band only covers the x-height core; ascenders/descenders
-    // sit just outside it. Plain rows are on a flat background, so we can mask
-    // generously in Y to catch them. Filled elements (buttons) must stay inside
-    // the fill so the border and rounded corners survive.
+    const { box, container, background, hasFill, textLeft, textRight } = p;
+
     let maskTop: number;
     let maskBottom: number;
     if (hasFill) {
       maskTop = Math.max(container.top + 2, box.top - 3);
-      maskBottom = Math.min(container.top + container.height - 2, box.top + box.height + 3);
+      maskBottom = Math.min(
+        container.top + container.height - 2,
+        box.top + box.height + 3,
+      );
     } else {
-      maskTop = Math.max(0, box.top - 6);
-      maskBottom = Math.min(imageHeight, box.top + box.height + 6);
+      maskTop = Math.max(0, box.top - 5);
+      maskBottom = Math.min(imageHeight, box.top + box.height + 5);
     }
-    const maskHeight = Math.max(1, maskBottom - maskTop);
 
-    const coverWidth = Math.max(box.width, textWidth) + (hasFill ? 4 : 8);
     const leftBound = hasFill ? container.left + 3 : 0;
     const rightBound = hasFill ? container.left + container.width - 3 : imageWidth;
-
-    let maskLeft: number;
-    let maskRight: number;
-    if (rightAligned) {
-      maskRight = Math.min(rightBound, box.left + box.width + (hasFill ? 3 : 6));
-      maskLeft = Math.max(leftBound, maskRight - coverWidth);
-    } else {
-      maskLeft = Math.max(leftBound, box.left - (hasFill ? 3 : 6));
-      maskRight = Math.min(rightBound, maskLeft + coverWidth);
-    }
+    // Keep the left pad tight on plain rows: card/list borders often sit just a
+    // few px left of the text, and a wide mask would erase them into segments.
+    const leftPad = hasFill ? 3 : 2;
+    const rightPad = hasFill ? 3 : 6;
+    const maskLeft = Math.max(leftBound, Math.min(textLeft, box.left) - leftPad);
+    const maskRight = Math.min(
+      rightBound,
+      Math.max(textRight, box.left + box.width) + rightPad,
+    );
 
     ctx.fillStyle = rgb(background);
-    ctx.fillRect(maskLeft, maskTop, Math.max(1, maskRight - maskLeft), maskHeight);
+    ctx.fillRect(
+      maskLeft * SS,
+      maskTop * SS,
+      Math.max(1, maskRight - maskLeft) * SS,
+      Math.max(1, maskBottom - maskTop) * SS,
+    );
   }
 
-  // Pass 2: draw the translation in the original text color, vertically
-  // centered on the element it belongs to.
+  // Pass 2: draw the translation in the original ink color, vertically centered
+  // on the element it belongs to.
+  ctx.textBaseline = "middle";
   for (const p of placements) {
-    const { block, box, container, foreground, fontSize, family, rightAligned, hasFill } = p;
+    const { block, box, container, foreground, fontSize, family, align, hasFill } = p;
 
     ctx.fillStyle = rgb(foreground);
-    ctx.font = `${weightToken(block.style.font_weight)} ${fontSize}px ${family}`;
-    ctx.textBaseline = "middle";
-    const y = hasFill
-      ? container.top + container.height / 2
-      : box.top + box.height / 2;
+    ctx.font = `${weightToken(block.style.font_weight)} ${fontSize * SS}px ${family}`;
+    const y =
+      (hasFill
+        ? container.top + container.height / 2
+        : box.top + box.height / 2) * SS;
 
-    if (rightAligned) {
+    if (align === "center") {
+      ctx.textAlign = "center";
+      ctx.fillText(
+        block.translated_text,
+        (container.left + container.width / 2) * SS,
+        y,
+      );
+    } else if (align === "right") {
       ctx.textAlign = "right";
-      const right = hasFill ? p.available : box.left + box.width;
-      ctx.fillText(block.translated_text, right, y);
+      ctx.fillText(block.translated_text, p.textRight * SS, y);
     } else {
       ctx.textAlign = "left";
-      ctx.fillText(block.translated_text, box.left, y);
+      ctx.fillText(block.translated_text, box.left * SS, y);
     }
-    ctx.textAlign = "left";
   }
+  ctx.textAlign = "left";
 
-  return canvas.toBuffer("image/png");
+  // Downscale the overlay layer with a high-quality kernel and lay it over the
+  // untouched original.
+  const overlayLayer = await sharp(canvas.toBuffer("image/png"))
+    .resize(imageWidth, imageHeight, { kernel: "lanczos3" })
+    .png()
+    .toBuffer();
+
+  return sharp(imageBuffer)
+    .composite([{ input: overlayLayer, top: 0, left: 0 }])
+    .png()
+    .toBuffer();
 }
