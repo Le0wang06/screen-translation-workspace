@@ -171,6 +171,7 @@ export function StepView({
             processingOriginalUrl={originalImageUrl}
             emptyLabel="Translated screenshot not available yet."
             failed={step.status === "failed"}
+            errorMessage={step.error_message}
             stepId={stepId}
           />
         </div>
@@ -203,6 +204,7 @@ type ScreenCardProps = {
   processing?: boolean;
   processingOriginalUrl?: string | null;
   failed?: boolean;
+  errorMessage?: string | null;
   stepId?: string;
 };
 
@@ -215,6 +217,7 @@ function ScreenCard({
   processing,
   processingOriginalUrl,
   failed,
+  errorMessage,
   stepId,
 }: ScreenCardProps) {
   return (
@@ -238,6 +241,11 @@ function ScreenCard({
         ) : (
           <div className="flex aspect-[4/3] flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
             <p>{emptyLabel}</p>
+            {failed && errorMessage ? (
+              <p className="max-w-md rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {errorMessage}
+              </p>
+            ) : null}
             {failed && stepId ? <RetryStepButton stepId={stepId} /> : null}
           </div>
         )}
