@@ -29,29 +29,7 @@ export async function triggerProcessStep(
   supabase: SupabaseClient,
   input: TriggerProcessStepInput,
 ) {
-  const useEdgeFunction = process.env.PROCESS_USE_EDGE_FUNCTION === "true";
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (useEdgeFunction && supabaseUrl && serviceRoleKey) {
-    try {
-      const response = await fetch(`${supabaseUrl}/functions/v1/process-step`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${serviceRoleKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(input),
-      });
-
-      if (response.ok) {
-        return;
-      }
-    } catch {
-      // Fall back to in-process background work below.
-    }
-  }
-
+  // Text-overlay localization requires sharp + canvas and runs in Next.js only.
   after(async () => {
     await runProcessStepInBackground(input);
   });
