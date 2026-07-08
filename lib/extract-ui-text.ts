@@ -4,21 +4,25 @@ import type { UiExtractionResult, UiTextBlock } from "@/lib/ui-text-types";
 
 export const PROCESS_VISION_MODEL = process.env.PROCESS_VISION_MODEL ?? "gpt-4o";
 
-const MAX_ANALYSIS_WIDTH = 2048;
-
 function buildExtractionPrompt(
+  imageWidth: number,
+  imageHeight: number,
   sourceLanguage: string | null | undefined,
   targetLanguage: string,
   notes?: string | null,
+  strict = false,
 ) {
   const sourceHint = sourceLanguage
     ? `Source UI language: ${sourceLanguage}.`
     : "Detect the source language from the screenshot.";
 
   const notesHint = notes?.trim() ? `\nReviewer notes: ${notes.trim()}` : "";
+  const strictHint = strict
+    ? "\nCRITICAL: Previous attempt had wrong positions. Each bbox_px must match the exact pixel location of source_text in THIS image. Do not stack blocks in the top-left corner."
+    : "";
 
-  return `You are locating UI text in a screenshot for an in-place translation overlay.
-${sourceHint}${notesHint}
+  return `Locate UI text in this ${imageWidth}x${imageHeight}px screenshot for in-place translation overlays.
+${sourceHint}${notesHint}${strictHint}
 
 Return JSON only:
 {
@@ -29,7 +33,7 @@ Return JSON only:
     {
       "source_text": "exact visible text",
       "translated_text": "translation in ${targetLanguage}",
-      "bbox_1000": [ymin, xmin, ymax, xmax],
+      "bbox_px": [ymin, xmin, ymax, xmax],
       "style": {
         "color": "#ffffff",
         "background": "#0d1117",
@@ -41,28 +45,27 @@ Return JSON only:
   ]
 }
 
-- bbox_1000 uses a 0-1000 grid on the screenshot (0,0 = top-left). Values must tightly wrap ONLY the pixels of source_text.
-- Each block's bbox_1000 must sit exactly where source_text appears — translations will be painted into this same box
-- xmin/xmax are horizontal edges of the text; ymin/ymax are vertical edges
+bbox_px uses pixel coordinates on this ${imageWidth}x${imageHeight} image (0,0 = top-left). ymin/ymax are vertical edges; xmin/xmax are horizontal edges. The box must tightly wrap ONLY source_text pixels.
 
 Rules:
-- Measure each text element at its REAL pixel position in the image — never invent a grid or column
-- Typical single-line labels are narrow (xmax-xmin often 80-450 on a 1000-wide grid)
-- Right-side buttons/links usually have xmin between 550-950; left titles usually xmin 20-300
-- Include left-side titles, descriptions, status badges, right-side buttons, and blue links
-- Split "Title · Status" into separate blocks when colors differ — status bbox wraps only the status word
+- Every block must stay at the same screen position as source_text — never relocate text to a new column or row
+- Left titles: xmin typically 30-350; descriptions below titles on the left; status words sit beside titles on the same row
+- Right buttons/links: xmin typically 55%-95% of image width
+- Split "Title · Status" into separate blocks with separate tight boxes
 - style.kind: heading, title, body, status, button, link
-- Buttons: kind=button, align=center, bbox wraps the full button chrome
-- Links: kind=link, blue color, bbox wraps only the link text
-- Descriptions: kind=body, bbox on the gray subtitle line only`;
+- Buttons: kind=button, align=center; links: kind=link, color #58a6ff`;
 }
 
-function bboxFrom1000(values: number[]) {
+function bboxFromPixels(
+  values: number[],
+  imageWidth: number,
+  imageHeight: number,
+) {
   const [ymin, xmin, ymax, xmax] = values;
-  const x = Math.min(xmin, xmax) / 1000;
-  const y = Math.min(ymin, ymax) / 1000;
-  const w = Math.abs(xmax - xmin) / 1000;
-  const h = Math.abs(ymax - ymin) / 1000;
+  const x = Math.min(xmin, xmax) / imageWidth;
+  const y = Math.min(ymin, ymax) / imageHeight;
+  const w = Math.abs(xmax - xmin) / imageWidth;
+  const h = Math.abs(ymax - ymin) / imageHeight;
   return { x, y, w, h };
 }
 
@@ -71,11 +74,18 @@ function clamp01(value: number) {
   return Math.min(1, Math.max(0, value));
 }
 
-function normalizeBlock(raw: Partial<UiTextBlock> & { bbox_1000?: number[] }): UiTextBlock | null {
+function normalizeBlock(
+  raw: Partial<UiTextBlock> & { bbox_px?: number[] },
+  imageWidth: number,
+  imageHeight: number,
+): UiTextBlock | null {
   const source = raw.source_text?.trim();
   const translated = raw.translated_text?.trim();
-  const bboxValues = raw.bbox_1000;
-  const bbox = bboxValues?.length === 4 ? bboxFrom1000(bboxValues) : raw.bbox;
+  const bboxValues = raw.bbox_px;
+  const bbox =
+    bboxValues?.length === 4
+      ? bboxFromPixels(bboxValues, imageWidth, imageHeight)
+      : raw.bbox;
 
   if (!source || !translated || !bbox) {
     return null;
@@ -86,12 +96,11 @@ function normalizeBlock(raw: Partial<UiTextBlock> & { bbox_1000?: number[] }): U
   const w = clamp01(bbox.w ?? 0);
   const h = clamp01(bbox.h ?? 0);
 
-  if (w <= 0 || h <= 0) {
+  if (w <= 0.002 || h <= 0.002) {
     return null;
   }
 
-  // Reject obvious hallucinated half-width columns.
-  if (w >= 0.48 && h <= 0.08 && (raw.style?.kind ?? "body") !== "body") {
+  if (w >= 0.7 && (raw.style?.kind ?? "body") !== "body") {
     return null;
   }
 
@@ -119,13 +128,28 @@ function normalizeBlock(raw: Partial<UiTextBlock> & { bbox_1000?: number[] }): U
   };
 }
 
-export async function extractUiText(
+function isClusteredLayout(blocks: UiTextBlock[]) {
+  if (blocks.length < 4) {
+    return false;
+  }
+
+  const topLeft = blocks.filter(
+    (block) => block.bbox.x < 0.08 && block.bbox.y < 0.2,
+  ).length;
+
+  return topLeft >= Math.ceil(blocks.length * 0.45);
+}
+
+async function requestExtraction(
   openai: OpenAI,
   imageDataUrl: string,
+  imageWidth: number,
+  imageHeight: number,
   sourceLanguage: string | null | undefined,
   targetLanguage: string,
   notes?: string | null,
-): Promise<UiExtractionResult> {
+  strict = false,
+) {
   const response = await openai.chat.completions.create({
     model: PROCESS_VISION_MODEL,
     response_format: { type: "json_object" },
@@ -135,7 +159,14 @@ export async function extractUiText(
         content: [
           {
             type: "text",
-            text: buildExtractionPrompt(sourceLanguage, targetLanguage, notes),
+            text: buildExtractionPrompt(
+              imageWidth,
+              imageHeight,
+              sourceLanguage,
+              targetLanguage,
+              notes,
+              strict,
+            ),
           },
           {
             type: "image_url",
@@ -155,16 +186,12 @@ export async function extractUiText(
     title?: string;
     summary?: string;
     source_language?: string;
-    blocks?: Array<Partial<UiTextBlock> & { bbox_1000?: number[] }>;
+    blocks?: Array<Partial<UiTextBlock> & { bbox_px?: number[] }>;
   };
 
   const blocks = (parsed.blocks ?? [])
-    .map(normalizeBlock)
+    .map((block) => normalizeBlock(block, imageWidth, imageHeight))
     .filter((block): block is UiTextBlock => block !== null);
-
-  if (blocks.length === 0) {
-    throw new Error("No translatable text blocks were detected in the screenshot.");
-  }
 
   return {
     title: parsed.title?.trim() || "Localized screen",
@@ -174,4 +201,41 @@ export async function extractUiText(
   };
 }
 
-export { MAX_ANALYSIS_WIDTH };
+export async function extractUiText(
+  openai: OpenAI,
+  imageDataUrl: string,
+  imageWidth: number,
+  imageHeight: number,
+  sourceLanguage: string | null | undefined,
+  targetLanguage: string,
+  notes?: string | null,
+): Promise<UiExtractionResult> {
+  let result = await requestExtraction(
+    openai,
+    imageDataUrl,
+    imageWidth,
+    imageHeight,
+    sourceLanguage,
+    targetLanguage,
+    notes,
+  );
+
+  if (result.blocks.length === 0 || isClusteredLayout(result.blocks)) {
+    result = await requestExtraction(
+      openai,
+      imageDataUrl,
+      imageWidth,
+      imageHeight,
+      sourceLanguage,
+      targetLanguage,
+      notes,
+      true,
+    );
+  }
+
+  if (result.blocks.length === 0) {
+    throw new Error("No translatable text blocks were detected in the screenshot.");
+  }
+
+  return result;
+}

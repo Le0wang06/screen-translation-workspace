@@ -4,6 +4,10 @@ function blockArea(block: UiTextBlock) {
   return block.bbox.w * block.bbox.h;
 }
 
+function blockCenterY(block: UiTextBlock) {
+  return block.bbox.y + block.bbox.h / 2;
+}
+
 function blockIoU(left: UiTextBlock, right: UiTextBlock) {
   const x1 = Math.max(left.bbox.x, right.bbox.x);
   const y1 = Math.max(left.bbox.y, right.bbox.y);
@@ -20,19 +24,68 @@ function blockIoU(left: UiTextBlock, right: UiTextBlock) {
 }
 
 function inferAlign(block: UiTextBlock): UiTextBlock["style"]["align"] {
-  if (block.style.align && block.style.align !== "left") {
-    return block.style.align;
-  }
   if (block.style.kind === "button") {
     return "center";
   }
   if (block.style.kind === "link" && block.bbox.x > 0.5) {
-    return "right";
+    return "left";
   }
-  if (block.bbox.x > 0.62) {
+  if (block.bbox.x > 0.58) {
     return "right";
   }
   return "left";
+}
+
+function clusterRows(blocks: UiTextBlock[]) {
+  const sorted = [...blocks].sort((left, right) => blockCenterY(left) - blockCenterY(right));
+  const rows: UiTextBlock[][] = [];
+
+  for (const block of sorted) {
+    const centerY = blockCenterY(block);
+    const row = rows.find((group) => {
+      const rowCenter = blockCenterY(group[0]);
+      return Math.abs(rowCenter - centerY) <= 0.018;
+    });
+
+    if (row) {
+      row.push(block);
+    } else {
+      rows.push([block]);
+    }
+  }
+
+  return rows;
+}
+
+function snapStatusToTitleRow(blocks: UiTextBlock[]) {
+  const rows = clusterRows(blocks);
+
+  return rows.flatMap((row) => {
+    const anchor = row.find(
+      (block) => block.style.kind === "title" || block.style.kind === "heading",
+    );
+
+    if (!anchor) {
+      return row;
+    }
+
+    const anchorY = anchor.bbox.y;
+    const anchorH = anchor.bbox.h;
+
+    return row.map((block) => {
+      if (block.style.kind !== "status") {
+        return block;
+      }
+
+      return {
+        ...block,
+        bbox: {
+          ...block.bbox,
+          y: anchorY + (anchorH - block.bbox.h) / 2,
+        },
+      };
+    });
+  });
 }
 
 function dedupeOverlappingBlocks(blocks: UiTextBlock[]) {
@@ -40,7 +93,7 @@ function dedupeOverlappingBlocks(blocks: UiTextBlock[]) {
 
   for (const block of blocks) {
     const overlapIndex = kept.findIndex(
-      (existing) => blockIoU(existing, block) > 0.55,
+      (existing) => blockIoU(existing, block) > 0.45,
     );
 
     if (overlapIndex === -1) {
@@ -63,8 +116,9 @@ function dedupeOverlappingBlocks(blocks: UiTextBlock[]) {
 
 export function refineUiBlocks(blocks: UiTextBlock[]): UiTextBlock[] {
   const deduped = dedupeOverlappingBlocks(blocks);
+  const snapped = snapStatusToTitleRow(deduped);
 
-  return deduped
+  return snapped
     .map((block) => ({
       ...block,
       style: {
@@ -74,7 +128,7 @@ export function refineUiBlocks(blocks: UiTextBlock[]): UiTextBlock[] {
     }))
     .sort((left, right) => {
       const yDiff = left.bbox.y - right.bbox.y;
-      if (Math.abs(yDiff) > 0.008) {
+      if (Math.abs(yDiff) > 0.006) {
         return yDiff;
       }
       return left.bbox.x - right.bbox.x;
@@ -85,21 +139,20 @@ export function bboxToPixelRect(
   block: UiTextBlock,
   imageWidth: number,
   imageHeight: number,
-  options?: { padX?: number; padY?: number },
+  options?: { padX?: number; padY?: number; expandRight?: number },
 ) {
-  const padX = options?.padX ?? 1;
-  const padY = options?.padY ?? 1;
+  const padX = options?.padX ?? 2;
+  const padY = options?.padY ?? 2;
+  const expandRight = options?.expandRight ?? 0;
 
   const left = Math.max(0, Math.round(block.bbox.x * imageWidth) - padX);
   const top = Math.max(0, Math.round(block.bbox.y * imageHeight) - padY);
-  const width = Math.min(
-    imageWidth - left,
-    Math.round(block.bbox.w * imageWidth) + padX * 2,
-  );
+  const baseWidth = Math.round(block.bbox.w * imageWidth) + padX * 2 + expandRight;
+  const width = Math.min(imageWidth - left, Math.max(1, baseWidth));
   const height = Math.min(
     imageHeight - top,
-    Math.round(block.bbox.h * imageHeight) + padY * 2,
+    Math.max(1, Math.round(block.bbox.h * imageHeight) + padY * 2),
   );
 
-  return { left, top, width: Math.max(1, width), height: Math.max(1, height) };
+  return { left, top, width, height };
 }

@@ -42,8 +42,7 @@ async function encodeBuffer(
 }
 
 async function analysisImageDataUrl(imageBuffer: Buffer) {
-  const buffer = await sharp(imageBuffer).rotate().png().toBuffer();
-  return bufferToDataUrl(buffer, "image/png");
+  return bufferToDataUrl(imageBuffer, "image/png");
 }
 
 async function refineBlockStyles(imageBuffer: Buffer, blocks: UiTextBlock[]) {
@@ -53,10 +52,16 @@ async function refineBlockStyles(imageBuffer: Buffer, blocks: UiTextBlock[]) {
 
   return Promise.all(
     blocks.map(async (block) => {
-      const left = Math.max(0, Math.floor(block.bbox.x * width));
-      const top = Math.max(0, Math.floor(block.bbox.y * height));
-      const boxWidth = Math.max(1, Math.ceil(block.bbox.w * width));
-      const boxHeight = Math.max(1, Math.ceil(block.bbox.h * height));
+      const left = Math.max(0, Math.min(width - 1, Math.floor(block.bbox.x * width)));
+      const top = Math.max(0, Math.min(height - 1, Math.floor(block.bbox.y * height)));
+      const boxWidth = Math.max(
+        1,
+        Math.min(width - left, Math.ceil(block.bbox.w * width)),
+      );
+      const boxHeight = Math.max(
+        1,
+        Math.min(height - top, Math.ceil(block.bbox.h * height)),
+      );
 
       const { data: bgSample } = await sharp(imageBuffer)
         .extract({ left, top, width: boxWidth, height: boxHeight })
@@ -88,11 +93,16 @@ export async function localizeScreenshot(
   input: LocalizeScreenshotInput,
 ): Promise<LocalizeScreenshotResult> {
   const rotated = await sharp(sourceBuffer).rotate().png().toBuffer();
+  const metadata = await sharp(rotated).metadata();
+  const imageWidth = metadata.width ?? 1;
+  const imageHeight = metadata.height ?? 1;
   const imageDataUrl = await analysisImageDataUrl(rotated);
 
   const extraction = await extractUiText(
     openai,
     imageDataUrl,
+    imageWidth,
+    imageHeight,
     input.sourceLanguage,
     input.targetLanguage,
     input.notes,

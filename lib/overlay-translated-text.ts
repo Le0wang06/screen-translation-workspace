@@ -93,16 +93,23 @@ function weightToken(weight?: UiTextStyle["font_weight"]) {
 
 async function sampleBackgroundAtCorners(
   imageBuffer: Buffer,
+  imageWidth: number,
+  imageHeight: number,
   left: number,
   top: number,
   width: number,
   height: number,
 ) {
+  const x = Math.min(imageWidth - 1, Math.max(0, left));
+  const y = Math.min(imageHeight - 1, Math.max(0, top));
+  const w = Math.max(1, Math.min(width, imageWidth - x));
+  const h = Math.max(1, Math.min(height, imageHeight - y));
+
   const points = [
-    [left, top],
-    [left + width - 1, top],
-    [left, top + height - 1],
-    [left + width - 1, top + height - 1],
+    [x, y],
+    [x + w - 1, y],
+    [x, y + h - 1],
+    [x + w - 1, y + h - 1],
   ];
 
   let r = 0;
@@ -189,14 +196,30 @@ export async function overlayTranslatedText(
   const ctx = canvas.getContext("2d");
   ctx.drawImage(image, 0, 0, imageWidth, imageHeight);
 
-  const rects = blocks.map((block) =>
-    bboxToPixelRect(block, imageWidth, imageHeight, { padX: 1, padY: 1 }),
-  );
+  const rects = blocks.map((block) => {
+    const fontFamily = fontFamilyForWeight(targetLanguage, block.style.font_weight);
+    const base = bboxToPixelRect(block, imageWidth, imageHeight, { padX: 2, padY: 2 });
+
+    ctx.font = `${weightToken(block.style.font_weight)} ${Math.floor(base.height * 0.78)}px ${fontFamily}`;
+    const measured = ctx.measureText(block.translated_text).width;
+    const expandRight = Math.max(0, Math.ceil(measured - base.width + 8));
+
+    return bboxToPixelRect(block, imageWidth, imageHeight, {
+      padX: 2,
+      padY: 2,
+      expandRight:
+        block.style.align === "left" || (block.style.align ?? "left") === "left"
+          ? expandRight
+          : 0,
+    });
+  });
 
   const backgrounds = await Promise.all(
     rects.map((rect) =>
       sampleBackgroundAtCorners(
         imageBuffer,
+        imageWidth,
+        imageHeight,
         rect.left,
         rect.top,
         rect.width,
