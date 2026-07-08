@@ -11,6 +11,8 @@
     "db:push": "supabase db push",
     "smoke:openai": "npx tsx --env-file=.env.local scripts/smoke-openai.ts",
     "smoke:overlay": "npx tsx --env-file=.env.local scripts/smoke-overlay.ts",
+    "debug:locate": "npx tsx --env-file=.env.local scripts/debug-locate.ts",
+    "bench:localize": "LOCALIZE_DEBUG=1 npx tsx --env-file=.env.local scripts/bench-localize.ts",
     "benchmark:images": "npx tsx --env-file=.env.local scripts/benchmark-image-models.ts",
     "smoke:day3": "npx tsx --env-file=.env.local scripts/smoke-day3.ts"
   },
