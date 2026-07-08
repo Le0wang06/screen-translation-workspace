@@ -9,12 +9,14 @@ export const PROCESS_IMAGE_MODEL =
 
 export const PROCESS_IMAGE_QUALITY =
   (process.env.PROCESS_IMAGE_QUALITY as "low" | "medium" | "high" | undefined) ??
-  "low";
+  "high";
 
 export const PROCESS_IMAGE_INPUT_DETAIL =
   (process.env.PROCESS_IMAGE_INPUT_DETAIL as "low" | "high" | "auto" | undefined) ??
   "auto";
 
+// Low fidelity lets the model re-render translated text crisply. High fidelity
+// tries to preserve original pixels and garbles the rewritten text.
 export const PROCESS_IMAGE_INPUT_FIDELITY =
   (process.env.PROCESS_IMAGE_INPUT_FIDELITY as "low" | "high" | undefined) ??
   "low";
