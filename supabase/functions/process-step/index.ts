@@ -20,8 +20,8 @@ type LetterboxPlan = {
 };
 
 const RESPONSE_MODEL = Deno.env.get("PROCESS_STEP_RESPONSE_MODEL") ?? "gpt-4o-mini";
-const IMAGE_MODEL = Deno.env.get("PROCESS_IMAGE_MODEL") ?? "gpt-image-1";
-const IMAGE_QUALITY = Deno.env.get("PROCESS_IMAGE_QUALITY") ?? "medium";
+const IMAGE_MODEL = Deno.env.get("PROCESS_IMAGE_MODEL") ?? "gpt-image-1.5";
+const IMAGE_QUALITY = Deno.env.get("PROCESS_IMAGE_QUALITY") ?? "low";
 const IMAGE_FORMAT_OVERRIDE = Deno.env.get("PROCESS_IMAGE_OUTPUT_FORMAT");
 const IMAGE_COMPRESSION = Number(Deno.env.get("PROCESS_IMAGE_OUTPUT_COMPRESSION") ?? "88");
 const IMAGE_INPUT_FIDELITY =

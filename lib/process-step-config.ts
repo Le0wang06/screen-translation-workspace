@@ -5,11 +5,11 @@ export const PROCESS_STEP_RESPONSE_MODEL =
   process.env.PROCESS_STEP_RESPONSE_MODEL ?? "gpt-4o-mini";
 
 export const PROCESS_IMAGE_MODEL =
-  process.env.PROCESS_IMAGE_MODEL ?? "gpt-image-1";
+  process.env.PROCESS_IMAGE_MODEL ?? "gpt-image-1.5";
 
 export const PROCESS_IMAGE_QUALITY =
   (process.env.PROCESS_IMAGE_QUALITY as "low" | "medium" | "high" | undefined) ??
-  "medium";
+  "low";
 
 export const PROCESS_IMAGE_INPUT_DETAIL =
   (process.env.PROCESS_IMAGE_INPUT_DETAIL as "low" | "high" | "auto" | undefined) ??
