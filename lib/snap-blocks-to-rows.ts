@@ -182,27 +182,49 @@ function measureRow(
   const hasFill = Math.abs(fillLuma - pageLuma) > 14;
   const inkThreshold = 32;
 
-  // Tight box around ink (pixels far from the fill), in both axes.
+  // Tight box around ink (pixels far from the fill), in both axes. Collect the
+  // ink pixels with their deviation so we can recover the true solid glyph
+  // color (not the dim anti-aliased edges).
   let xMin = contentX1;
   let xMax = contentX0;
   let yMin = band.bottom;
   let yMax = band.top;
-  const fg = { r: 0, g: 0, b: 0, count: 0 };
+  let maxDev = 0;
+  const ink: { r: number; g: number; b: number; dev: number }[] = [];
   for (let y = band.top; y < band.bottom; y++) {
     for (let x = contentX0; x < contentX1; x++) {
       const { r, g, b } = at(x, y);
-      if (Math.abs(luma(r, g, b) - fillLuma) <= inkThreshold) continue;
+      const dev = Math.abs(luma(r, g, b) - fillLuma);
+      if (dev <= inkThreshold) continue;
       if (x < xMin) xMin = x;
       if (x > xMax) xMax = x;
       if (y < yMin) yMin = y;
       if (y > yMax) yMax = y;
-      fg.r += r;
-      fg.g += g;
-      fg.b += b;
+      if (dev > maxDev) maxDev = dev;
+      ink.push({ r, g, b, dev });
+    }
+  }
+  if (xMax < xMin || ink.length === 0) return null;
+
+  // Solid glyph color = average of the strongest-deviation pixels, which are
+  // the fully-inked cores rather than the fill-blended edges.
+  const coreCut = maxDev * 0.6;
+  const fg = { r: 0, g: 0, b: 0, count: 0 };
+  for (const px of ink) {
+    if (px.dev < coreCut) continue;
+    fg.r += px.r;
+    fg.g += px.g;
+    fg.b += px.b;
+    fg.count++;
+  }
+  if (fg.count === 0) {
+    for (const px of ink) {
+      fg.r += px.r;
+      fg.g += px.g;
+      fg.b += px.b;
       fg.count++;
     }
   }
-  if (xMax < xMin || fg.count === 0) return null;
 
   return {
     box: {
