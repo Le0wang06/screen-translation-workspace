@@ -9,9 +9,7 @@ import type { UiTextBlock, UiTextStyle } from "@/lib/ui-text-types";
 let fontsRegistered = false;
 
 function registerOverlayFonts() {
-  if (fontsRegistered) {
-    return;
-  }
+  if (fontsRegistered) return;
 
   const assetFontDir = path.join(process.cwd(), "assets/fonts");
   const interDir = path.join(process.cwd(), "node_modules/@fontsource/inter/files");
@@ -20,26 +18,22 @@ function registerOverlayFonts() {
     "node_modules/@fontsource/noto-sans-sc/files",
   );
 
-  const interFromAssets = [
+  for (const [family, file] of [
     ["Inter", "Inter-Regular.ttf"],
     ["InterMedium", "Inter-Medium.ttf"],
     ["InterSemiBold", "Inter-SemiBold.ttf"],
-  ] as const;
-
-  for (const [family, file] of interFromAssets) {
+  ] as const) {
     const assetPath = path.join(assetFontDir, file);
     if (fs.existsSync(assetPath)) {
       GlobalFonts.registerFromPath(assetPath, family);
     }
   }
 
-  const interWeights = [
+  for (const [family, file] of [
     ["Inter", "inter-latin-400-normal.woff"],
     ["InterMedium", "inter-latin-500-normal.woff"],
     ["InterSemiBold", "inter-latin-600-normal.woff"],
-  ] as const;
-
-  for (const [family, file] of interWeights) {
+  ] as const) {
     if (!GlobalFonts.has(family)) {
       GlobalFonts.registerFromPath(path.join(interDir, file), family);
     }
@@ -47,40 +41,31 @@ function registerOverlayFonts() {
 
   const notoFile = fs
     .readdirSync(notoDir)
-    .find((file) => file.includes("chinese-simplified-400") && file.endsWith(".woff"));
+    .find((f) => f.includes("chinese-simplified-400") && f.endsWith(".woff"));
+  if (notoFile) GlobalFonts.registerFromPath(path.join(notoDir, notoFile), "NotoSansSC");
 
-  if (notoFile) {
-    GlobalFonts.registerFromPath(path.join(notoDir, notoFile), "NotoSansSC");
-  }
-
-  const notoMediumFile = fs
+  const notoMedium = fs
     .readdirSync(notoDir)
-    .find((file) => file.includes("chinese-simplified-500") && file.endsWith(".woff"));
-
-  if (notoMediumFile) {
-    GlobalFonts.registerFromPath(path.join(notoDir, notoMediumFile), "NotoSansSCMedium");
+    .find((f) => f.includes("chinese-simplified-500") && f.endsWith(".woff"));
+  if (notoMedium) {
+    GlobalFonts.registerFromPath(path.join(notoDir, notoMedium), "NotoSansSCMedium");
   }
 
   fontsRegistered = true;
 }
 
-function usesCjk(targetLanguage: string) {
-  return /^(zh|ja|ko)/i.test(targetLanguage.trim());
+function usesCjk(lang: string) {
+  return /^(zh|ja|ko)/i.test(lang.trim());
 }
 
-function fontFamilyForWeight(targetLanguage: string, weight?: UiTextStyle["font_weight"]) {
-  if (usesCjk(targetLanguage)) {
-    return weight === "medium" || weight === "semibold" || weight === "bold"
+function fontFamily(lang: string, weight?: UiTextStyle["font_weight"]) {
+  if (usesCjk(lang)) {
+    return weight === "semibold" || weight === "bold" || weight === "medium"
       ? "NotoSansSCMedium"
       : "NotoSansSC";
   }
-
-  if (weight === "semibold" || weight === "bold") {
-    return "InterSemiBold";
-  }
-  if (weight === "medium") {
-    return "InterMedium";
-  }
+  if (weight === "semibold" || weight === "bold") return "InterSemiBold";
+  if (weight === "medium") return "InterMedium";
   return "Inter";
 }
 
@@ -91,7 +76,9 @@ function weightToken(weight?: UiTextStyle["font_weight"]) {
   return "normal";
 }
 
-async function sampleBackgroundAtCorners(
+type SampledColors = { background: string; foreground: string };
+
+async function sampleRegionColors(
   imageBuffer: Buffer,
   imageWidth: number,
   imageHeight: number,
@@ -99,36 +86,33 @@ async function sampleBackgroundAtCorners(
   top: number,
   width: number,
   height: number,
-) {
+): Promise<SampledColors> {
   const x = Math.min(imageWidth - 1, Math.max(0, left));
   const y = Math.min(imageHeight - 1, Math.max(0, top));
   const w = Math.max(1, Math.min(width, imageWidth - x));
   const h = Math.max(1, Math.min(height, imageHeight - y));
 
-  const points = [
-    [x, y],
-    [x + w - 1, y],
-    [x, y + h - 1],
-    [x + w - 1, y + h - 1],
-  ];
+  const { data, info } = await sharp(imageBuffer)
+    .extract({ left: x, top: y, width: w, height: h })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
 
-  let r = 0;
-  let g = 0;
-  let b = 0;
-  let count = 0;
-
-  for (const [x, y] of points) {
-    const { data } = await sharp(imageBuffer)
-      .extract({ left: x, top: y, width: 1, height: 1 })
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    r += data[0];
-    g += data[1];
-    b += data[2];
-    count += 1;
+  const pixels: { luma: number; r: number; g: number; b: number }[] = [];
+  for (let i = 0; i < data.length; i += info.channels) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    pixels.push({ luma: 0.2126 * r + 0.7152 * g + 0.0722 * b, r, g, b });
   }
 
-  return `rgb(${Math.round(r / count)}, ${Math.round(g / count)}, ${Math.round(b / count)})`;
+  pixels.sort((a, b) => a.luma - b.luma);
+  const bg = pixels[Math.floor(pixels.length * 0.2)] ?? pixels[0];
+  const fg = pixels[Math.floor(pixels.length * 0.9)] ?? pixels[pixels.length - 1];
+
+  const toRgb = (p: { r: number; g: number; b: number }) =>
+    `rgb(${p.r}, ${p.g}, ${p.b})`;
+
+  return { background: toRgb(bg), foreground: toRgb(fg) };
 }
 
 function fitFontSize(
@@ -139,45 +123,18 @@ function fitFontSize(
   fontFamily: string,
   weight: UiTextStyle["font_weight"],
 ) {
-  const target = Math.floor(maxHeight * 0.78);
-  let low = 8;
-  let high = Math.max(9, Math.min(target, 48));
-  let best = low;
+  let size = Math.max(8, Math.floor(maxHeight * 0.72));
+  const minSize = 8;
 
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    ctx.font = `${weightToken(weight)} ${mid}px ${fontFamily}`;
-    const metrics = ctx.measureText(text);
-    if (metrics.width <= maxWidth * 0.94 && mid <= maxHeight * 0.9) {
-      best = mid;
-      low = mid + 1;
-    } else {
-      high = mid - 1;
+  while (size >= minSize) {
+    ctx.font = `${weightToken(weight)} ${size}px ${fontFamily}`;
+    if (ctx.measureText(text).width <= maxWidth - 2) {
+      return size;
     }
+    size -= 1;
   }
 
-  return best;
-}
-
-function textPosition(
-  rect: { left: number; top: number; width: number; height: number },
-  align: UiTextStyle["align"],
-  kind: UiTextStyle["kind"],
-) {
-  const insetX = kind === "button" ? 10 : 2;
-  const textY = rect.top + rect.height / 2;
-
-  if (align === "center") {
-    return { x: rect.left + rect.width / 2, y: textY, align: "center" as const };
-  }
-  if (align === "right") {
-    return {
-      x: rect.left + rect.width - insetX,
-      y: textY,
-      align: "right" as const,
-    };
-  }
-  return { x: rect.left + insetX, y: textY, align: "left" as const };
+  return minSize;
 }
 
 export async function overlayTranslatedText(
@@ -196,27 +153,10 @@ export async function overlayTranslatedText(
   const ctx = canvas.getContext("2d");
   ctx.drawImage(image, 0, 0, imageWidth, imageHeight);
 
-  const rects = blocks.map((block) => {
-    const fontFamily = fontFamilyForWeight(targetLanguage, block.style.font_weight);
-    const base = bboxToPixelRect(block, imageWidth, imageHeight, { padX: 2, padY: 2 });
-
-    ctx.font = `${weightToken(block.style.font_weight)} ${Math.floor(base.height * 0.78)}px ${fontFamily}`;
-    const measured = ctx.measureText(block.translated_text).width;
-    const expandRight = Math.max(0, Math.ceil(measured - base.width + 8));
-
-    return bboxToPixelRect(block, imageWidth, imageHeight, {
-      padX: 2,
-      padY: 2,
-      expandRight:
-        block.style.align === "left" || (block.style.align ?? "left") === "left"
-          ? expandRight
-          : 0,
-    });
-  });
-
-  const backgrounds = await Promise.all(
-    rects.map((rect) =>
-      sampleBackgroundAtCorners(
+  const placements = await Promise.all(
+    blocks.map(async (block) => {
+      const rect = bboxToPixelRect(block, imageWidth, imageHeight);
+      const colors = await sampleRegionColors(
         imageBuffer,
         imageWidth,
         imageHeight,
@@ -224,86 +164,63 @@ export async function overlayTranslatedText(
         rect.top,
         rect.width,
         rect.height,
-      ),
-    ),
+      );
+      const family = fontFamily(targetLanguage, block.style.font_weight);
+      const fontSize = fitFontSize(
+        ctx,
+        block.translated_text,
+        rect.width,
+        rect.height,
+        family,
+        block.style.font_weight,
+      );
+      ctx.font = `${weightToken(block.style.font_weight)} ${fontSize}px ${family}`;
+      const textWidth = Math.ceil(ctx.measureText(block.translated_text).width);
+
+      const maskWidth = Math.min(
+        imageWidth - rect.left,
+        Math.max(rect.width, textWidth + 4),
+      );
+
+      return {
+        block,
+        rect: { ...rect, width: maskWidth },
+        colors,
+        fontSize,
+        family,
+        textWidth,
+      };
+    }),
   );
 
-  for (const [index, block] of blocks.entries()) {
-    const rect = rects[index];
-    const kind = block.style.kind ?? "body";
-    const background = backgrounds[index];
-
-    ctx.fillStyle = background;
-
-    if (kind === "button") {
-      const radius = Math.min(6, rect.height / 4);
-      roundRect(ctx, rect.left, rect.top, rect.width, rect.height, radius);
-      ctx.fill();
-      ctx.strokeStyle = block.style.color || "#ffffff";
-      ctx.lineWidth = 1;
-      roundRect(
-        ctx,
-        rect.left + 0.5,
-        rect.top + 0.5,
-        rect.width - 1,
-        rect.height - 1,
-        radius,
-      );
-      ctx.stroke();
-      continue;
-    }
-
-    if (kind === "link") {
-      ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
-      continue;
-    }
-
+  for (const { rect, colors } of placements) {
+    ctx.fillStyle = colors.background;
     ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
   }
 
-  for (const [index, block] of blocks.entries()) {
-    const rect = rects[index];
-    const fontFamily = fontFamilyForWeight(targetLanguage, block.style.font_weight);
-    const fontSize = fitFontSize(
-      ctx,
-      block.translated_text,
-      rect.width,
-      rect.height,
-      fontFamily,
-      block.style.font_weight,
-    );
+  for (const { block, rect, colors, fontSize, family } of placements) {
+    const fg =
+      block.style.kind === "link"
+        ? block.style.color || "#58a6ff"
+        : colors.foreground;
 
-    ctx.fillStyle = block.style.color || "#ffffff";
-    ctx.font = `${weightToken(block.style.font_weight)} ${fontSize}px ${fontFamily}`;
+    ctx.fillStyle = fg;
+    ctx.font = `${weightToken(block.style.font_weight)} ${fontSize}px ${family}`;
     ctx.textBaseline = "middle";
 
-    const position = textPosition(rect, block.style.align ?? "left", block.style.kind);
-    ctx.textAlign = position.align;
-    ctx.fillText(block.translated_text, position.x, position.y);
+    const kind = block.style.kind ?? "body";
+    const y = rect.top + rect.height / 2;
+
+    if (kind === "button" || block.style.align === "center") {
+      ctx.textAlign = "center";
+      ctx.fillText(block.translated_text, rect.left + rect.width / 2, y);
+    } else {
+      ctx.textAlign = "left";
+      ctx.fillText(block.translated_text, rect.left + 1, y);
+    }
+
     ctx.textAlign = "left";
   }
 
   return canvas.toBuffer("image/png");
-}
-
-function roundRect(
-  ctx: ReturnType<ReturnType<typeof createCanvas>["getContext"]>,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-) {
-  const r = Math.min(radius, width / 2, height / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + width - r, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
-  ctx.lineTo(x + width, y + height - r);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
-  ctx.lineTo(x + r, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
 }

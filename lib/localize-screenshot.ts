@@ -1,16 +1,16 @@
 import OpenAI from "openai";
 import sharp from "sharp";
 
-import { extractUiText } from "@/lib/extract-ui-text";
 import type { ImageOutputFormat } from "@/lib/image-format";
+import { locateUiText } from "@/lib/locate-ui-text";
 import { overlayTranslatedText } from "@/lib/overlay-translated-text";
-import { refineUiBlocks } from "@/lib/refine-ui-blocks";
 import { bufferToDataUrl } from "@/lib/prepare-screenshot";
 import {
   PLACEHOLDER_STEP_SUMMARY,
   PLACEHOLDER_STEP_TITLE,
 } from "@/lib/process-step-config";
-import type { UiTextBlock } from "@/lib/ui-text-types";
+import { refineUiBlocks } from "@/lib/refine-ui-blocks";
+import { translateLocatedBlocks } from "@/lib/translate-ui-blocks";
 
 export type LocalizeScreenshotInput = {
   sourceLanguage?: string | null;
@@ -26,10 +26,7 @@ export type LocalizeScreenshotResult = {
   source_language?: string;
 };
 
-async function encodeBuffer(
-  buffer: Buffer,
-  format: ImageOutputFormat,
-): Promise<Buffer> {
+async function encodeBuffer(buffer: Buffer, format: ImageOutputFormat) {
   const image = sharp(buffer);
   switch (format) {
     case "jpeg":
@@ -41,52 +38,6 @@ async function encodeBuffer(
   }
 }
 
-async function analysisImageDataUrl(imageBuffer: Buffer) {
-  return bufferToDataUrl(imageBuffer, "image/png");
-}
-
-async function refineBlockStyles(imageBuffer: Buffer, blocks: UiTextBlock[]) {
-  const metadata = await sharp(imageBuffer).metadata();
-  const width = metadata.width ?? 1;
-  const height = metadata.height ?? 1;
-
-  return Promise.all(
-    blocks.map(async (block) => {
-      const left = Math.max(0, Math.min(width - 1, Math.floor(block.bbox.x * width)));
-      const top = Math.max(0, Math.min(height - 1, Math.floor(block.bbox.y * height)));
-      const boxWidth = Math.max(
-        1,
-        Math.min(width - left, Math.ceil(block.bbox.w * width)),
-      );
-      const boxHeight = Math.max(
-        1,
-        Math.min(height - top, Math.ceil(block.bbox.h * height)),
-      );
-
-      const { data: bgSample } = await sharp(imageBuffer)
-        .extract({ left, top, width: boxWidth, height: boxHeight })
-        .resize(1, 1)
-        .raw()
-        .toBuffer({ resolveWithObject: true });
-
-      const toHex = (value: number) =>
-        Math.round(value).toString(16).padStart(2, "0");
-      const bgHex = `#${toHex(bgSample[0])}${toHex(bgSample[1])}${toHex(bgSample[2])}`;
-
-      const isLink = block.style.kind === "link";
-
-      return {
-        ...block,
-        style: {
-          ...block.style,
-          background: bgHex,
-          color: isLink ? "#58a6ff" : block.style.color,
-        },
-      };
-    }),
-  );
-}
-
 export async function localizeScreenshot(
   openai: OpenAI,
   sourceBuffer: Buffer,
@@ -96,32 +47,30 @@ export async function localizeScreenshot(
   const metadata = await sharp(rotated).metadata();
   const imageWidth = metadata.width ?? 1;
   const imageHeight = metadata.height ?? 1;
-  const imageDataUrl = await analysisImageDataUrl(rotated);
+  const imageDataUrl = bufferToDataUrl(rotated, "image/png");
 
-  const extraction = await extractUiText(
+  const located = refineUiBlocks(
+    await locateUiText(openai, imageDataUrl, imageWidth, imageHeight),
+  );
+
+  const translated = await translateLocatedBlocks(
     openai,
-    imageDataUrl,
-    imageWidth,
-    imageHeight,
-    input.sourceLanguage,
+    located,
     input.targetLanguage,
+    input.sourceLanguage,
     input.notes,
   );
 
-  const refinedBlocks = refineUiBlocks(extraction.blocks);
-  const styledBlocks = await refineBlockStyles(rotated, refinedBlocks);
   const overlaid = await overlayTranslatedText(
     rotated,
-    styledBlocks,
+    translated.blocks,
     input.targetLanguage,
   );
 
-  const buffer = await encodeBuffer(overlaid, input.openAiFormat);
-
   return {
-    buffer,
-    title: extraction.title || PLACEHOLDER_STEP_TITLE,
-    summary: extraction.summary || PLACEHOLDER_STEP_SUMMARY,
-    source_language: extraction.source_language ?? input.sourceLanguage ?? undefined,
+    buffer: await encodeBuffer(overlaid, input.openAiFormat),
+    title: translated.title || PLACEHOLDER_STEP_TITLE,
+    summary: translated.summary || PLACEHOLDER_STEP_SUMMARY,
+    source_language: translated.source_language ?? input.sourceLanguage ?? undefined,
   };
 }
