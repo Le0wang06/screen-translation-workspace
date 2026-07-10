@@ -1,25 +1,25 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
 import type { Step } from "@/lib/db/types";
-import { SCREENSHOTS_BUCKET } from "@/lib/storage/screenshots";
-import { createClient } from "@/lib/supabase/client";
+import { preloadBrowserImages } from "@/lib/preload-image";
 import { cn } from "@/lib/utils";
 
 type PresentationModeProps = {
   steps: Step[];
   currentStepId: string;
+  imageUrls: Record<string, { original: string | null; translated: string | null }>;
   onClose: () => void;
 };
 
 export function PresentationMode({
   steps,
   currentStepId,
+  imageUrls,
   onClose,
 }: PresentationModeProps) {
   const [index, setIndex] = useState(() =>
@@ -28,9 +28,6 @@ export function PresentationMode({
       steps.findIndex((step) => step.id === currentStepId),
     ),
   );
-  const [imageUrls, setImageUrls] = useState<
-    Record<string, { original: string | null; translated: string | null }>
-  >({});
 
   const step = steps[index];
   const urls = step ? imageUrls[step.id] : null;
@@ -56,74 +53,13 @@ export function PresentationMode({
   }, [goNext, goPrev, onClose]);
 
   useEffect(() => {
-    const indexes = [index - 1, index, index + 1].filter(
-      (candidate) => candidate >= 0 && candidate < steps.length,
-    );
-    const stepsToLoad = indexes
-      .map((candidate) => steps[candidate])
-      .filter((candidate) => candidate && !imageUrls[candidate.id]);
+    for (const stepIndex of [index - 1, index, index + 1]) {
+      const nearbyStep = steps[stepIndex];
+      if (!nearbyStep) continue;
 
-    if (stepsToLoad.length === 0) return;
-
-    let cancelled = false;
-    const supabase = createClient();
-    const paths = stepsToLoad.flatMap((candidate) =>
-      [candidate.image_url, candidate.translated_image_url].filter(
-        (path): path is string => Boolean(path),
-      ),
-    );
-
-    async function loadUrls() {
-      if (paths.length === 0) {
-        setImageUrls((current) => ({
-          ...current,
-          ...Object.fromEntries(
-            stepsToLoad.map((candidate) => [
-              candidate.id,
-              { original: null, translated: null },
-            ]),
-          ),
-        }));
-        return;
-      }
-
-      const { data } = await supabase.storage
-        .from(SCREENSHOTS_BUCKET)
-        .createSignedUrls(paths, 3600);
-
-      if (cancelled) return;
-
-      const byPath = new Map<string, string | null>();
-      data?.forEach((item, itemIndex) => {
-        const path = item.path ?? paths[itemIndex];
-        if (path) {
-          byPath.set(path, item.signedUrl ?? null);
-        }
-      });
-
-      setImageUrls((current) => ({
-        ...current,
-        ...Object.fromEntries(
-          stepsToLoad.map((candidate) => [
-            candidate.id,
-            {
-              original: candidate.image_url
-                ? byPath.get(candidate.image_url) ?? null
-                : null,
-              translated: candidate.translated_image_url
-                ? byPath.get(candidate.translated_image_url) ?? null
-                : null,
-            },
-          ]),
-        ),
-      }));
+      const nearbyUrls = imageUrls[nearbyStep.id];
+      preloadBrowserImages([nearbyUrls?.translated, nearbyUrls?.original]);
     }
-
-    void loadUrls();
-
-    return () => {
-      cancelled = true;
-    };
   }, [imageUrls, index, steps]);
 
   if (!step) return null;
@@ -156,12 +92,13 @@ export function PresentationMode({
           >
             <ChevronRight className="size-4" aria-hidden />
           </button>
-          <Link
-            href={`/steps/${step.id}`}
+          <button
+            type="button"
             className={cn(buttonVariants({ variant: "secondary", size: "sm" }))}
+            onClick={onClose}
           >
             退出
-          </Link>
+          </button>
           <button
             type="button"
             className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }))}
@@ -189,7 +126,7 @@ export function PresentationMode({
           <p className="text-sm text-muted-foreground">
             {step.status === "processing"
               ? "此屏幕仍在处理中…"
-              : "正在加载屏幕…"}
+              : "截图不可用"}
           </p>
         )}
       </div>

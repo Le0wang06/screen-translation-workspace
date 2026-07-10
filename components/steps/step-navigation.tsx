@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
 import { StepFilmstrip } from "@/components/steps/step-filmstrip";
@@ -34,14 +34,22 @@ export function StepNavigation({
     currentIndex >= 0 && currentIndex < steps.length - 1
       ? steps[currentIndex + 1]
       : null;
-  const prevHref = prevStep ? `/steps/${prevStep.id}` : null;
-  const nextHref = nextStep ? `/steps/${nextStep.id}` : null;
+  const goToStep = useCallback(
+    (targetStepId: string) => {
+      if (onStepSelect) {
+        onStepSelect(targetStepId);
+      } else {
+        router.push(`/steps/${targetStepId}`);
+      }
+    },
+    [onStepSelect, router],
+  );
 
   useEffect(() => {
     if (onStepSelect) return;
-    if (prevHref) router.prefetch(prevHref);
-    if (nextHref) router.prefetch(nextHref);
-  }, [nextHref, onStepSelect, prevHref, router]);
+    if (prevStep) router.prefetch(`/steps/${prevStep.id}`);
+    if (nextStep) router.prefetch(`/steps/${nextStep.id}`);
+  }, [nextStep, onStepSelect, prevStep, router]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -54,26 +62,18 @@ export function StepNavigation({
 
       if (event.key === "ArrowLeft" && prevStep) {
         event.preventDefault();
-        if (onStepSelect) {
-          onStepSelect(prevStep.id);
-        } else {
-          router.push(`/steps/${prevStep.id}`);
-        }
+        goToStep(prevStep.id);
       }
 
       if (event.key === "ArrowRight" && nextStep) {
         event.preventDefault();
-        if (onStepSelect) {
-          onStepSelect(nextStep.id);
-        } else {
-          router.push(`/steps/${nextStep.id}`);
-        }
+        goToStep(nextStep.id);
       }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [nextStep, onStepSelect, prevStep, router]);
+  }, [goToStep, nextStep, prevStep]);
 
   if (steps.length <= 1) {
     return (
@@ -113,50 +113,54 @@ export function StepNavigation({
             <Plus className="size-4" aria-hidden />
             添加屏幕
           </Button>
-          {prevStep && onStepSelect ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1"
-              onClick={() => onStepSelect(prevStep.id)}
-            >
-              <ChevronLeft className="size-4" aria-hidden />
-              <span className="hidden sm:inline">上一个</span>
-            </Button>
-          ) : prevStep ? (
-            <Link
-              href={prevHref!}
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1")}
-            >
-              <ChevronLeft className="size-4" aria-hidden />
-              <span className="hidden sm:inline">上一个</span>
-            </Link>
+          {prevStep ? (
+            onStepSelect ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={() => goToStep(prevStep.id)}
+              >
+                <ChevronLeft className="size-4" aria-hidden />
+                <span className="hidden sm:inline">上一个</span>
+              </Button>
+            ) : (
+              <Link
+                href={`/steps/${prevStep.id}`}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1")}
+              >
+                <ChevronLeft className="size-4" aria-hidden />
+                <span className="hidden sm:inline">上一个</span>
+              </Link>
+            )
           ) : (
             <Button variant="outline" size="sm" className="gap-1" disabled>
               <ChevronLeft className="size-4" aria-hidden />
               <span className="hidden sm:inline">上一个</span>
             </Button>
           )}
-          {nextStep && onStepSelect ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1"
-              onClick={() => onStepSelect(nextStep.id)}
-            >
-              <span className="hidden sm:inline">下一个</span>
-              <ChevronRight className="size-4" aria-hidden />
-            </Button>
-          ) : nextStep ? (
-            <Link
-              href={nextHref!}
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1")}
-            >
-              <span className="hidden sm:inline">下一个</span>
-              <ChevronRight className="size-4" aria-hidden />
-            </Link>
+          {nextStep ? (
+            onStepSelect ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={() => goToStep(nextStep.id)}
+              >
+                <span className="hidden sm:inline">下一个</span>
+                <ChevronRight className="size-4" aria-hidden />
+              </Button>
+            ) : (
+              <Link
+                href={`/steps/${nextStep.id}`}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1")}
+              >
+                <span className="hidden sm:inline">下一个</span>
+                <ChevronRight className="size-4" aria-hidden />
+              </Link>
+            )
           ) : (
             <Button variant="outline" size="sm" className="gap-1" disabled>
               <span className="hidden sm:inline">下一个</span>

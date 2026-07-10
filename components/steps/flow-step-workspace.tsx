@@ -10,6 +10,12 @@ import { StepNavigation } from "@/components/steps/step-navigation";
 import { StepStatusBadge } from "@/components/steps/step-status-badge";
 import { StepView } from "@/components/steps/step-view";
 import type { Step } from "@/lib/db/types";
+import { preloadBrowserImages } from "@/lib/preload-image";
+
+type StepImages = {
+  original: string | null;
+  translated: string | null;
+};
 
 type FlowStepWorkspaceProps = {
   initialStepId: string;
@@ -23,19 +29,12 @@ type FlowStepWorkspaceProps = {
   };
   steps: Step[];
   thumbnailUrls: Record<string, string | null>;
-  imageUrls: Record<string, { original: string | null; translated: string | null }>;
+  imageUrls: Record<string, StepImages>;
 };
 
 function stepIdFromPath(pathname: string) {
   const match = pathname.match(/^\/steps\/([^/]+)$/);
   return match?.[1] ?? null;
-}
-
-function preloadImage(url: string | null | undefined) {
-  if (!url) return;
-  const image = new window.Image();
-  image.decoding = "async";
-  image.src = url;
 }
 
 export function FlowStepWorkspace({
@@ -90,13 +89,22 @@ export function FlowStepWorkspace({
   useEffect(() => {
     if (currentIndex < 0) return;
 
-    for (const index of [currentIndex - 1, currentIndex, currentIndex + 1]) {
+    for (const index of [
+      currentIndex - 2,
+      currentIndex - 1,
+      currentIndex,
+      currentIndex + 1,
+      currentIndex + 2,
+    ]) {
       const step = steps[index];
       if (!step) continue;
-      preloadImage(imageUrls[step.id]?.original);
-      preloadImage(imageUrls[step.id]?.translated);
+      preloadBrowserImages([
+        imageUrls[step.id]?.original,
+        imageUrls[step.id]?.translated,
+        thumbnailUrls[step.id],
+      ]);
     }
-  }, [currentIndex, imageUrls, steps]);
+  }, [currentIndex, imageUrls, steps, thumbnailUrls]);
 
   if (!currentStep) {
     return null;
@@ -159,6 +167,7 @@ export function FlowStepWorkspace({
         flowSteps={steps}
         originalImageUrl={currentImages?.original ?? null}
         translatedImageUrl={currentImages?.translated ?? null}
+        presentationImages={imageUrls}
       />
     </div>
   );

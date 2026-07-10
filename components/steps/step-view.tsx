@@ -35,6 +35,10 @@ type StepViewProps = {
   flowSteps: Step[];
   originalImageUrl: string | null;
   translatedImageUrl: string | null;
+  presentationImages: Record<
+    string,
+    { original: string | null; translated: string | null }
+  >;
 };
 
 export function StepView({
@@ -43,6 +47,7 @@ export function StepView({
   flowSteps,
   originalImageUrl,
   translatedImageUrl,
+  presentationImages,
 }: StepViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("split");
   const [presenting, setPresenting] = useState(false);
@@ -172,6 +177,7 @@ export function StepView({
         <PresentationMode
           steps={flowSteps}
           currentStepId={stepId}
+          imageUrls={presentationImages}
           onClose={() => setPresenting(false)}
         />
       ) : null}
@@ -219,7 +225,10 @@ function ScreenCard({
             <img
               src={imageUrl}
               alt={alt}
-              className="block h-auto w-full animate-in fade-in duration-500"
+              className="block h-auto w-full"
+              decoding="async"
+              fetchPriority="high"
+              loading="eager"
             />
           </div>
         ) : (

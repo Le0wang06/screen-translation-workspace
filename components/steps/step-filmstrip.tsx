@@ -112,6 +112,18 @@ export function StepFilmstrip({
           const thumbnailUrl = thumbnailUrls[step.id];
           const isActive = step.id === currentStepId;
           const isDragOver = dragOverId === step.id && draggedId !== step.id;
+          const activeRefCallback = isActive
+            ? (node: HTMLElement | null) => {
+                activeRef.current = node;
+              }
+            : undefined;
+          const cardClassName = cn(
+            "group flex min-w-0 flex-1 flex-col gap-2 rounded-xl border p-2 text-left transition-colors",
+            isActive
+              ? "border-primary bg-primary/5 ring-2 ring-primary/30"
+              : "border-border/70 bg-card hover:border-border hover:bg-muted/30",
+            draggedId === step.id && "opacity-50",
+          );
 
           return (
             <div
@@ -156,21 +168,9 @@ export function StepFilmstrip({
 
               {onStepSelect ? (
                 <button
-                  ref={
-                    isActive
-                      ? (node) => {
-                          activeRef.current = node;
-                        }
-                      : undefined
-                  }
+                  ref={activeRefCallback}
                   type="button"
-                  className={cn(
-                    "group flex min-w-0 flex-1 flex-col gap-2 rounded-xl border p-2 text-left transition-colors",
-                    isActive
-                      ? "border-primary bg-primary/5 ring-2 ring-primary/30"
-                      : "border-border/70 bg-card hover:border-border hover:bg-muted/30",
-                    draggedId === step.id && "opacity-50",
-                  )}
+                  className={cardClassName}
                   onClick={() => onStepSelect(step.id)}
                 >
                   <StepFilmstripCard
@@ -181,21 +181,9 @@ export function StepFilmstrip({
                 </button>
               ) : (
                 <Link
-                  ref={
-                    isActive
-                      ? (node) => {
-                          activeRef.current = node;
-                        }
-                      : undefined
-                  }
+                  ref={activeRefCallback}
                   href={`/steps/${step.id}`}
-                  className={cn(
-                    "group flex min-w-0 flex-1 flex-col gap-2 rounded-xl border p-2 transition-colors",
-                    isActive
-                      ? "border-primary bg-primary/5 ring-2 ring-primary/30"
-                      : "border-border/70 bg-card hover:border-border hover:bg-muted/30",
-                    draggedId === step.id && "opacity-50",
-                  )}
+                  className={cardClassName}
                 >
                   <StepFilmstripCard
                     step={step}

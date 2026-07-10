@@ -53,7 +53,10 @@ export function ImageCompareSlider({
           src={translatedUrl}
           alt={translatedAlt}
           className="block h-auto w-full"
+          decoding="async"
           draggable={false}
+          fetchPriority="high"
+          loading="eager"
         />
         <div
           className="absolute inset-0 overflow-hidden"
@@ -64,7 +67,10 @@ export function ImageCompareSlider({
             src={originalUrl}
             alt={originalAlt}
             className="block h-auto w-full"
+            decoding="async"
             draggable={false}
+            fetchPriority="high"
+            loading="eager"
           />
         </div>
         <div

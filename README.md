@@ -26,3 +26,4 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Status
 
 Day 1 in progress — foundation and auth.
+Badge test PR.
