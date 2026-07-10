@@ -15,11 +15,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Screen Localization Workspace",
-    template: "%s · Screen Localization",
+    default: "屏幕本地化工作台",
+    template: "%s · 屏幕本地化",
   },
-  description:
-    "Turn product screenshots into localized screen images for your team.",
+  description: "把产品截图直接生成适合团队查看的本地化屏幕。",
 };
 
 export default function RootLayout({
@@ -29,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="zh-CN"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">{children}</body>

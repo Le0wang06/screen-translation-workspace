@@ -50,7 +50,7 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   if (!project) {
-    return notFound("Project not found.");
+    return notFound("项目不存在。");
   }
 
   const { data, error } = await supabase
@@ -83,14 +83,14 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   if (!project) {
-    return notFound("Project not found.");
+    return notFound("项目不存在。");
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return badRequest("Invalid JSON body.");
+    return badRequest("JSON 内容无效。");
   }
 
   const name =
@@ -102,7 +102,7 @@ export async function POST(request: Request, context: RouteContext) {
       : "";
 
   if (!name) {
-    return badRequest("Flow name is required.");
+    return badRequest("请输入流程名称。");
   }
 
   const { data: existingFlows, error: positionError } = await supabase

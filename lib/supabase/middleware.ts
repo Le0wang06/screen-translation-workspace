@@ -41,7 +41,7 @@ export async function updateSession(request: NextRequest) {
 
   if (!user && !isPublicRoute(pathname)) {
     if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "未登录。" }, { status: 401 });
     }
 
     const url = request.nextUrl.clone();

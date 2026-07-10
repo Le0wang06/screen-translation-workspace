@@ -5,9 +5,9 @@ import type { StepStatus } from "@/lib/db/types";
 import { cn } from "@/lib/utils";
 
 const STATUS_LABELS: Record<StepStatus, string> = {
-  processing: "Processing",
-  done: "Ready",
-  failed: "Failed",
+  processing: "处理中",
+  done: "已完成",
+  failed: "失败",
 };
 
 const STATUS_VARIANTS: Record<

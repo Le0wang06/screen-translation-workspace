@@ -15,8 +15,8 @@ type ImageCompareSliderProps = {
 export function ImageCompareSlider({
   originalUrl,
   translatedUrl,
-  originalAlt = "Original screenshot",
-  translatedAlt = "Translated screenshot",
+  originalAlt = "原始截图",
+  translatedAlt = "翻译后截图",
   className,
 }: ImageCompareSliderProps) {
   const [position, setPosition] = useState(50);
@@ -80,10 +80,10 @@ export function ImageCompareSlider({
           <span className="text-xs text-muted-foreground">↔</span>
         </div>
         <div className="pointer-events-none absolute top-3 left-3 rounded-md bg-background/90 px-2 py-1 text-[10px] font-medium shadow-sm">
-          Original
+          原图
         </div>
         <div className="pointer-events-none absolute top-3 right-3 rounded-md bg-background/90 px-2 py-1 text-[10px] font-medium shadow-sm">
-          Translated
+          译图
         </div>
       </div>
       <input
@@ -93,7 +93,7 @@ export function ImageCompareSlider({
         value={position}
         onChange={(event) => setPosition(Number(event.target.value))}
         className="w-full accent-primary"
-        aria-label="Compare original and translated screenshots"
+        aria-label="对比原图和译图"
       />
     </div>
   );

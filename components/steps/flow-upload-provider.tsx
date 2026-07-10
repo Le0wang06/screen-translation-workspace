@@ -29,8 +29,6 @@ type FlowUploadContextValue = {
   uploadFiles: (files: FileList | File[]) => Promise<void>;
   pasteFromClipboard: () => Promise<void>;
   pickFile: () => void;
-  registerInput: (input: HTMLInputElement | null) => void;
-  onInputChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   clearError: () => void;
 };
 
@@ -82,7 +80,7 @@ export function FlowUploadProvider({
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Failed to upload screenshot.");
+        throw new Error(payload.error ?? "上传截图失败。");
       }
 
       return payload.step?.id ?? null;
@@ -95,7 +93,7 @@ export function FlowUploadProvider({
       const images = imageFilesFromFileList(files);
 
       if (images.length === 0) {
-        setError("Drop an image file (PNG, JPG, or WebP).");
+        setError("请拖入图片文件（PNG、JPG 或 WebP）。");
         return;
       }
 
@@ -121,7 +119,7 @@ export function FlowUploadProvider({
             }
           } catch (err) {
             failures.push(
-              err instanceof Error ? err.message : "Upload failed.",
+              err instanceof Error ? err.message : "上传失败。",
             );
           }
         }
@@ -137,8 +135,8 @@ export function FlowUploadProvider({
               kind: "success",
               message:
                 images.length > 1
-                  ? `${images.length} screens added — translating in background`
-                  : "Screenshot added — translating in background",
+                  ? `已添加 ${images.length} 个屏幕，正在后台翻译`
+                  : "截图已添加，正在后台翻译",
             });
           }
         }
@@ -147,16 +145,16 @@ export function FlowUploadProvider({
           const message =
             failures.length === images.length
               ? failures[0]
-              : `${failures.length} upload${failures.length === 1 ? "" : "s"} failed. Others were added.`;
+              : `${failures.length} 个上传失败，其余已添加。`;
           setError(message);
           setStatus({ kind: "error", message });
         } else if (!lastStepId) {
-          setError("Failed to upload screenshot.");
-          setStatus({ kind: "error", message: "Failed to upload screenshot." });
+          setError("上传截图失败。");
+          setStatus({ kind: "error", message: "上传截图失败。" });
         }
       } catch {
-        setError("Failed to upload screenshot.");
-        setStatus({ kind: "error", message: "Failed to upload screenshot." });
+        setError("上传截图失败。");
+        setStatus({ kind: "error", message: "上传截图失败。" });
       } finally {
         setPending(false);
         if (inputRef.current) {
@@ -179,7 +177,7 @@ export function FlowUploadProvider({
       const file = await imageFromClipboardApi();
       if (!file) {
         setError(
-          "No image found on clipboard. On Mac, use ⌘⇧⌃4 to copy a screenshot to clipboard.",
+          "剪贴板里没有图片。在 Mac 上可以用 ⌘⇧⌃4 将截图复制到剪贴板。",
         );
         return;
       }
@@ -189,7 +187,7 @@ export function FlowUploadProvider({
       const message =
         err instanceof Error
           ? err.message
-          : "Could not read image from clipboard.";
+          : "无法读取剪贴板图片。";
       setError(message);
     }
   }, [pending, uploadFile]);
@@ -245,10 +243,6 @@ export function FlowUploadProvider({
     inputRef.current?.click();
   }, []);
 
-  const registerInput = useCallback((input: HTMLInputElement | null) => {
-    inputRef.current = input;
-  }, []);
-
   const handleDragOver = useCallback((event: React.DragEvent) => {
     if (!event.dataTransfer.types.includes("Files")) return;
     event.preventDefault();
@@ -281,8 +275,6 @@ export function FlowUploadProvider({
         uploadFiles,
         pasteFromClipboard,
         pickFile,
-        registerInput,
-        onInputChange,
         clearError,
       }}
     >
@@ -295,15 +287,24 @@ export function FlowUploadProvider({
           isDragging && "bg-muted/40 ring-2 ring-primary/30 ring-offset-2",
         )}
       >
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="sr-only"
+          onChange={onInputChange}
+          disabled={pending}
+        />
         {isDragging ? (
           <div
             className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center rounded-xl bg-primary/5 backdrop-blur-[1px]"
             aria-hidden
           >
             <div className="rounded-2xl border border-primary/30 bg-background/95 px-6 py-4 text-center shadow-lg">
-              <p className="text-sm font-medium">Drop to add screenshot</p>
+              <p className="text-sm font-medium">放开即可添加截图</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Drop one or more images — they&apos;ll upload in order
+                可拖入一张或多张图片，系统会按顺序上传
               </p>
             </div>
           </div>
@@ -321,7 +322,7 @@ export function FlowUploadProvider({
 export function useFlowUpload() {
   const context = useContext(FlowUploadContext);
   if (!context) {
-    throw new Error("useFlowUpload must be used within FlowUploadProvider.");
+    throw new Error("useFlowUpload 必须在 FlowUploadProvider 内使用。");
   }
   return context;
 }

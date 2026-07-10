@@ -28,14 +28,14 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   if (!flow) {
-    return notFound("Flow not found.");
+    return notFound("流程不存在。");
   }
 
   const body = (await request.json()) as { stepIds?: string[] };
   const stepIds = body.stepIds;
 
   if (!Array.isArray(stepIds) || stepIds.length === 0) {
-    return badRequest("stepIds must be a non-empty array.");
+    return badRequest("stepIds 必须是非空数组。");
   }
 
   const { data: existingSteps, error: stepsError } = await supabase
@@ -50,12 +50,12 @@ export async function PATCH(request: Request, context: RouteContext) {
   const existingIds = new Set((existingSteps ?? []).map((step) => step.id));
 
   if (stepIds.length !== existingIds.size) {
-    return badRequest("stepIds must include every step in the flow.");
+    return badRequest("stepIds 必须包含流程中的所有屏幕。");
   }
 
   for (const stepId of stepIds) {
     if (!existingIds.has(stepId)) {
-      return badRequest("stepIds contains an unknown step.");
+      return badRequest("stepIds 包含未知屏幕。");
     }
   }
 

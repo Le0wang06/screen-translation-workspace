@@ -28,14 +28,14 @@ export async function signIn(
   );
 
   if (!email || !password) {
-    return { error: "Email and password are required." };
+    return { error: "请输入邮箱和密码。" };
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    return { error: error.message };
+    return { error: "登录失败，请检查邮箱和密码。" };
   }
 
   revalidatePath("/", "layout");
@@ -50,18 +50,18 @@ export async function signUp(
   const password = String(formData.get("password") ?? "");
 
   if (!email || !password) {
-    return { error: "Email and password are required." };
+    return { error: "请输入邮箱和密码。" };
   }
 
   if (password.length < 6) {
-    return { error: "Password must be at least 6 characters." };
+    return { error: "密码至少需要 6 个字符。" };
   }
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({ email, password });
 
   if (error) {
-    return { error: error.message };
+    return { error: "创建账号失败，请检查邮箱和密码后重试。" };
   }
 
   if (data.session) {
@@ -70,7 +70,7 @@ export async function signUp(
   }
 
   return {
-    success: "Account created. Check your email if confirmation is required.",
+    success: "账号已创建。如需验证，请检查邮箱。",
   };
 }
 

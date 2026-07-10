@@ -16,6 +16,7 @@ type StepFilmstripProps = {
   currentStepId?: string;
   flowId?: string;
   className?: string;
+  onStepSelect?: (stepId: string) => void;
 };
 
 export function StepFilmstrip({
@@ -24,10 +25,11 @@ export function StepFilmstrip({
   currentStepId,
   flowId,
   className,
+  onStepSelect,
 }: StepFilmstripProps) {
   const router = useRouter();
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const activeRef = useRef<HTMLAnchorElement>(null);
+  const activeRef = useRef<HTMLElement | null>(null);
   const [orderedSteps, setOrderedSteps] = useState<Step[] | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -141,7 +143,7 @@ export function StepFilmstrip({
                   type="button"
                   draggable
                   className="mt-3 flex h-8 w-5 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground hover:bg-muted/60 active:cursor-grabbing"
-                  aria-label={`Reorder ${step.title || `step ${index + 1}`}`}
+                  aria-label={`调整顺序：${step.title || `第 ${index + 1} 步`}`}
                   onDragStart={() => setDraggedId(step.id)}
                   onDragEnd={() => {
                     setDraggedId(null);
@@ -152,54 +154,109 @@ export function StepFilmstrip({
                 </button>
               ) : null}
 
-              <Link
-                ref={isActive ? activeRef : undefined}
-                href={`/steps/${step.id}`}
-                className={cn(
-                  "group flex min-w-0 flex-1 flex-col gap-2 rounded-xl border p-2 transition-colors",
-                  isActive
-                    ? "border-primary bg-primary/5 ring-2 ring-primary/30"
-                    : "border-border/70 bg-card hover:border-border hover:bg-muted/30",
-                  draggedId === step.id && "opacity-50",
-                )}
-              >
-                <div className="relative aspect-[4/3] overflow-hidden rounded-lg border border-border/60 bg-muted/30">
-                  {thumbnailUrl ? (
-                    <Image
-                      src={thumbnailUrl}
-                      alt={step.title || `Screen ${index + 1}`}
-                      fill
-                      className="object-contain object-top"
-                      sizes="160px"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="flex size-full items-center justify-center text-xs text-muted-foreground">
-                      —
-                    </div>
+              {onStepSelect ? (
+                <button
+                  ref={
+                    isActive
+                      ? (node) => {
+                          activeRef.current = node;
+                        }
+                      : undefined
+                  }
+                  type="button"
+                  className={cn(
+                    "group flex min-w-0 flex-1 flex-col gap-2 rounded-xl border p-2 text-left transition-colors",
+                    isActive
+                      ? "border-primary bg-primary/5 ring-2 ring-primary/30"
+                      : "border-border/70 bg-card hover:border-border hover:bg-muted/30",
+                    draggedId === step.id && "opacity-50",
                   )}
-                  {step.status === "processing" ? (
-                    <div className="absolute inset-0 flex items-center justify-center bg-background/55 backdrop-blur-[1px]">
-                      <span className="rounded-full bg-background/90 px-2 py-1 text-[10px] font-medium text-primary shadow-sm">
-                        Processing
-                      </span>
-                    </div>
-                  ) : null}
-                  <span className="absolute top-1.5 left-1.5 rounded-md bg-background/90 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums shadow-sm">
-                    {index + 1}
-                  </span>
-                </div>
-                <div className="min-w-0 space-y-1 px-0.5">
-                  <p className="truncate text-xs font-medium">
-                    {step.title || `Step ${index + 1}`}
-                  </p>
-                  <StepStatusBadge status={step.status} className="text-[10px]" />
-                </div>
-              </Link>
+                  onClick={() => onStepSelect(step.id)}
+                >
+                  <StepFilmstripCard
+                    step={step}
+                    index={index}
+                    thumbnailUrl={thumbnailUrl}
+                  />
+                </button>
+              ) : (
+                <Link
+                  ref={
+                    isActive
+                      ? (node) => {
+                          activeRef.current = node;
+                        }
+                      : undefined
+                  }
+                  href={`/steps/${step.id}`}
+                  className={cn(
+                    "group flex min-w-0 flex-1 flex-col gap-2 rounded-xl border p-2 transition-colors",
+                    isActive
+                      ? "border-primary bg-primary/5 ring-2 ring-primary/30"
+                      : "border-border/70 bg-card hover:border-border hover:bg-muted/30",
+                    draggedId === step.id && "opacity-50",
+                  )}
+                >
+                  <StepFilmstripCard
+                    step={step}
+                    index={index}
+                    thumbnailUrl={thumbnailUrl}
+                  />
+                </Link>
+              )}
             </div>
           );
         })}
       </div>
     </div>
+  );
+}
+
+type StepFilmstripCardProps = {
+  step: Step;
+  index: number;
+  thumbnailUrl: string | null | undefined;
+};
+
+function StepFilmstripCard({
+  step,
+  index,
+  thumbnailUrl,
+}: StepFilmstripCardProps) {
+  return (
+    <>
+      <div className="relative aspect-[4/3] overflow-hidden rounded-lg border border-border/60 bg-muted/30">
+        {thumbnailUrl ? (
+          <Image
+            src={thumbnailUrl}
+            alt={step.title || `第 ${index + 1} 个屏幕`}
+            fill
+            className="object-contain object-top"
+            sizes="160px"
+            unoptimized
+          />
+        ) : (
+          <div className="flex size-full items-center justify-center text-xs text-muted-foreground">
+            -
+          </div>
+        )}
+        {step.status === "processing" ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/55 backdrop-blur-[1px]">
+            <span className="rounded-full bg-background/90 px-2 py-1 text-[10px] font-medium text-primary shadow-sm">
+              处理中
+            </span>
+          </div>
+        ) : null}
+        <span className="absolute top-1.5 left-1.5 rounded-md bg-background/90 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums shadow-sm">
+          {index + 1}
+        </span>
+      </div>
+      <div className="min-w-0 space-y-1 px-0.5">
+        <p className="truncate text-xs font-medium">
+          {step.title || `第 ${index + 1} 步`}
+        </p>
+        <StepStatusBadge status={step.status} className="text-[10px]" />
+      </div>
+    </>
   );
 }

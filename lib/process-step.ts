@@ -37,7 +37,7 @@ export type ProcessStepResult = {
 function getOpenAIClient() {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not configured.");
+    throw new Error("未配置 OPENAI_API_KEY。");
   }
   return new OpenAI({ apiKey });
 }
@@ -51,7 +51,7 @@ export async function processStep(
     .download(input.imagePath);
 
   if (downloadError || !file) {
-    throw new Error(downloadError?.message ?? "Failed to download screenshot.");
+    throw new Error(downloadError?.message ?? "下载截图失败。");
   }
 
   const sourceFormat = resolveSourceImageFormat(input.imagePath, file.type);

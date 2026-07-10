@@ -7,10 +7,8 @@ import {
   requireUser,
   serverError,
 } from "@/lib/api/helpers";
-import { getScreenshotSignedUrl } from "@/lib/storage/signed-url";
-import {
-  SCREENSHOTS_BUCKET,
-} from "@/lib/storage/screenshots";
+import { getScreenshotSignedUrls } from "@/lib/storage/signed-url";
+import { SCREENSHOTS_BUCKET } from "@/lib/storage/screenshots";
 import { stepPreviewImagePath } from "@/lib/steps/display-image";
 
 type RouteContext = {
@@ -33,17 +31,20 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   if (!step) {
-    return notFound("Step not found.");
+    return notFound("屏幕不存在。");
   }
 
-  const imageUrl = await getScreenshotSignedUrl(supabase, step.image_url);
+  const previewImagePath = stepPreviewImagePath(step);
+  const signedImageUrls = await getScreenshotSignedUrls(supabase, [
+    step.image_url,
+    step.translated_image_url,
+    previewImagePath,
+  ]);
+  const imageUrl = signedImageUrls[step.image_url] ?? null;
   const localizedImageUrl = step.translated_image_url
-    ? await getScreenshotSignedUrl(supabase, step.translated_image_url)
+    ? signedImageUrls[step.translated_image_url] ?? null
     : null;
-  const previewImageUrl = await getScreenshotSignedUrl(
-    supabase,
-    stepPreviewImagePath(step),
-  );
+  const previewImageUrl = signedImageUrls[previewImagePath] ?? null;
 
   return NextResponse.json({
     step,
@@ -69,7 +70,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   if (!step) {
-    return notFound("Step not found.");
+    return notFound("屏幕不存在。");
   }
 
   const body = (await request.json()) as {
@@ -84,7 +85,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.title !== undefined) {
     const title = body.title.trim();
     if (!title) {
-      return badRequest("Title cannot be empty.");
+      return badRequest("标题不能为空。");
     }
     updates.title = title;
   }
@@ -94,7 +95,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   if (body.title === undefined && body.summary === undefined) {
-    return badRequest("Provide title and/or summary to update.");
+    return badRequest("请提供要更新的标题或说明。");
   }
 
   const { data: updatedStep, error: updateError } = await supabase
@@ -105,7 +106,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     .single();
 
   if (updateError || !updatedStep) {
-    return serverError(updateError?.message ?? "Failed to update step.");
+    return serverError(updateError?.message ?? "更新屏幕失败。");
   }
 
   return NextResponse.json({ step: updatedStep });
@@ -127,7 +128,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
   }
 
   if (!step) {
-    return notFound("Step not found.");
+    return notFound("屏幕不存在。");
   }
 
   const pathsToRemove = [step.image_url, step.translated_image_url].filter(

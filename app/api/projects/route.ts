@@ -5,6 +5,7 @@ import {
   requireUser,
   serverError,
 } from "@/lib/api/helpers";
+import { DEFAULT_TARGET_LANGUAGE } from "@/lib/languages";
 
 export async function GET() {
   const { user, supabase, unauthorized } = await requireUser();
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return badRequest("Invalid JSON body.");
+    return badRequest("JSON 内容无效。");
   }
 
   const name =
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
       : "";
 
   if (!name) {
-    return badRequest("Project name is required.");
+    return badRequest("请输入项目名称。");
   }
 
   const sourceLanguage =
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
     typeof body.target_language === "string" &&
     body.target_language.trim()
       ? body.target_language.trim()
-      : "en";
+      : DEFAULT_TARGET_LANGUAGE;
 
   const { data, error } = await supabase
     .from("projects")

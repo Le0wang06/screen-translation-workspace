@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { ClipboardPaste, Upload } from "lucide-react";
 
 import { useFlowUpload } from "@/components/steps/flow-upload-provider";
@@ -8,32 +7,15 @@ import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field";
 
 export function UploadStepButton() {
-  const inputRef = useRef<HTMLInputElement>(null);
   const {
     pending,
     error,
     pasteFromClipboard,
     pickFile,
-    registerInput,
-    onInputChange,
   } = useFlowUpload();
-
-  useEffect(() => {
-    registerInput(inputRef.current);
-    return () => registerInput(null);
-  }, [registerInput]);
 
   return (
     <div className="flex flex-col gap-2">
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="sr-only"
-        onChange={onInputChange}
-        disabled={pending}
-      />
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
@@ -42,7 +24,7 @@ export function UploadStepButton() {
           onClick={pickFile}
         >
           <Upload className="size-4" aria-hidden />
-          {pending ? "Uploading…" : "Add screenshot"}
+          {pending ? "上传中…" : "添加截图"}
         </Button>
         <Button
           type="button"
@@ -52,12 +34,11 @@ export function UploadStepButton() {
           onClick={() => void pasteFromClipboard()}
         >
           <ClipboardPaste className="size-4" aria-hidden />
-          Paste from clipboard
+          从剪贴板粘贴
         </Button>
       </div>
       <p className="max-w-md text-xs text-muted-foreground text-pretty">
-        Paste with <kbd className="rounded border px-1">⌘V</kbd>, drag one or
-        more images, or pick multiple files at once.
+        按 <kbd className="rounded border px-1">⌘V</kbd> 粘贴，拖入图片，或一次选择多张文件。
       </p>
       {error ? <FieldError errors={[{ message: error }]} /> : null}
     </div>

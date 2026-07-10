@@ -7,19 +7,19 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
 import type { Step } from "@/lib/db/types";
+import { SCREENSHOTS_BUCKET } from "@/lib/storage/screenshots";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 type PresentationModeProps = {
   steps: Step[];
   currentStepId: string;
-  imageUrls: Record<string, { original: string | null; translated: string | null }>;
   onClose: () => void;
 };
 
 export function PresentationMode({
   steps,
   currentStepId,
-  imageUrls,
   onClose,
 }: PresentationModeProps) {
   const [index, setIndex] = useState(() =>
@@ -28,6 +28,9 @@ export function PresentationMode({
       steps.findIndex((step) => step.id === currentStepId),
     ),
   );
+  const [imageUrls, setImageUrls] = useState<
+    Record<string, { original: string | null; translated: string | null }>
+  >({});
 
   const step = steps[index];
   const urls = step ? imageUrls[step.id] : null;
@@ -52,6 +55,77 @@ export function PresentationMode({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [goNext, goPrev, onClose]);
 
+  useEffect(() => {
+    const indexes = [index - 1, index, index + 1].filter(
+      (candidate) => candidate >= 0 && candidate < steps.length,
+    );
+    const stepsToLoad = indexes
+      .map((candidate) => steps[candidate])
+      .filter((candidate) => candidate && !imageUrls[candidate.id]);
+
+    if (stepsToLoad.length === 0) return;
+
+    let cancelled = false;
+    const supabase = createClient();
+    const paths = stepsToLoad.flatMap((candidate) =>
+      [candidate.image_url, candidate.translated_image_url].filter(
+        (path): path is string => Boolean(path),
+      ),
+    );
+
+    async function loadUrls() {
+      if (paths.length === 0) {
+        setImageUrls((current) => ({
+          ...current,
+          ...Object.fromEntries(
+            stepsToLoad.map((candidate) => [
+              candidate.id,
+              { original: null, translated: null },
+            ]),
+          ),
+        }));
+        return;
+      }
+
+      const { data } = await supabase.storage
+        .from(SCREENSHOTS_BUCKET)
+        .createSignedUrls(paths, 3600);
+
+      if (cancelled) return;
+
+      const byPath = new Map<string, string | null>();
+      data?.forEach((item, itemIndex) => {
+        const path = item.path ?? paths[itemIndex];
+        if (path) {
+          byPath.set(path, item.signedUrl ?? null);
+        }
+      });
+
+      setImageUrls((current) => ({
+        ...current,
+        ...Object.fromEntries(
+          stepsToLoad.map((candidate) => [
+            candidate.id,
+            {
+              original: candidate.image_url
+                ? byPath.get(candidate.image_url) ?? null
+                : null,
+              translated: candidate.translated_image_url
+                ? byPath.get(candidate.translated_image_url) ?? null
+                : null,
+            },
+          ]),
+        ),
+      }));
+    }
+
+    void loadUrls();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [imageUrls, index, steps]);
+
   if (!step) return null;
 
   return (
@@ -59,10 +133,10 @@ export function PresentationMode({
       <header className="flex items-center justify-between gap-4 border-b border-border/60 px-4 py-3 sm:px-6">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">
-            {step.title || `Screen ${index + 1}`}
+            {step.title || `第 ${index + 1} 个屏幕`}
           </p>
           <p className="text-xs text-muted-foreground tabular-nums">
-            {index + 1} of {steps.length}
+            {index + 1} / {steps.length}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -86,13 +160,13 @@ export function PresentationMode({
             href={`/steps/${step.id}`}
             className={cn(buttonVariants({ variant: "secondary", size: "sm" }))}
           >
-            Exit
+            退出
           </Link>
           <button
             type="button"
             className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }))}
             onClick={onClose}
-            aria-label="Close presentation"
+            aria-label="关闭演示"
           >
             <X className="size-4" />
           </button>
@@ -103,7 +177,7 @@ export function PresentationMode({
           <div className="relative h-full w-full max-w-6xl">
             <Image
               src={displayUrl}
-              alt={step.title || "Presentation screen"}
+              alt={step.title || "演示屏幕"}
               fill
               className="object-contain"
               sizes="100vw"
@@ -114,8 +188,8 @@ export function PresentationMode({
         ) : (
           <p className="text-sm text-muted-foreground">
             {step.status === "processing"
-              ? "This screen is still processing…"
-              : "Screenshot unavailable"}
+              ? "此屏幕仍在处理中…"
+              : "正在加载屏幕…"}
           </p>
         )}
       </div>

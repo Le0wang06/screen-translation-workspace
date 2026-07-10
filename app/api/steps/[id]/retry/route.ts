@@ -24,19 +24,19 @@ export async function POST(_request: Request, context: RouteContext) {
   }
 
   if (!step) {
-    return notFound("Step not found.");
+    return notFound("屏幕不存在。");
   }
 
   if (step.status !== "failed") {
     return NextResponse.json(
-      { error: "Only failed steps can be retried." },
+      { error: "只有失败的屏幕可以重试。" },
       { status: 400 },
     );
   }
 
   if (!step.image_url) {
     return NextResponse.json(
-      { error: "This step has no screenshot to process." },
+      { error: "此屏幕没有可处理的截图。" },
       { status: 400 },
     );
   }
@@ -71,7 +71,7 @@ export async function POST(_request: Request, context: RouteContext) {
     .single();
 
   if (fetchError || !updatedStep) {
-    return serverError(fetchError?.message ?? "Failed to load step.");
+    return serverError(fetchError?.message ?? "加载屏幕失败。");
   }
 
   return NextResponse.json({ step: updatedStep });

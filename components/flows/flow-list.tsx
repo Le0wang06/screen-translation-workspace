@@ -17,7 +17,7 @@ type FlowListProps = {
 };
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat("zh-CN", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -33,14 +33,14 @@ export function FlowList({ projectId, flows }: FlowListProps) {
             <Layers3 className="size-6 text-muted-foreground" aria-hidden />
           </div>
           <div className="max-w-sm space-y-1">
-            <p className="text-sm font-medium">No flows yet</p>
+            <p className="text-sm font-medium">还没有流程</p>
             <p className="text-sm text-muted-foreground text-pretty">
-              Create one to start your walkthrough.
+              创建一个流程，开始整理屏幕路径。
             </p>
           </div>
           <CreateFlowDialog
             projectId={projectId}
-            triggerLabel="New flow"
+            triggerLabel="新建流程"
             triggerSize="default"
           />
         </CardContent>
@@ -52,10 +52,8 @@ export function FlowList({ projectId, flows }: FlowListProps) {
     <Card className="border-border/70 shadow-sm">
       <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-border/60 bg-muted/20">
         <div className="space-y-1">
-          <CardTitle className="text-base">Flows</CardTitle>
-          <CardDescription>
-            {flows.length} flow{flows.length === 1 ? "" : "s"}
-          </CardDescription>
+          <CardTitle className="text-base">流程</CardTitle>
+          <CardDescription>共 {flows.length} 个流程</CardDescription>
         </div>
         <CreateFlowDialog projectId={projectId} />
       </CardHeader>
@@ -70,7 +68,7 @@ export function FlowList({ projectId, flows }: FlowListProps) {
                 <div className="min-w-0 space-y-1">
                   <p className="truncate font-medium">{flow.name}</p>
                   <p className="text-sm text-muted-foreground">
-                    Created {formatDate(flow.created_at)}
+                    创建于 {formatDate(flow.created_at)}
                   </p>
                 </div>
                 <ArrowRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />

@@ -13,6 +13,7 @@ export function DownloadTranslatedButton({
 }: DownloadTranslatedButtonProps) {
   return (
     <Button
+      nativeButton={false}
       render={
         <a
           href={imageUrl}
@@ -27,7 +28,7 @@ export function DownloadTranslatedButton({
       className="gap-1.5"
     >
       <Download className="size-4" aria-hidden />
-      Download
+      下载
     </Button>
   );
 }

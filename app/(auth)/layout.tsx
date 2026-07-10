@@ -21,9 +21,9 @@ export default function AuthLayout({
         </div>
         <div className="leading-tight">
           <p className="text-sm font-semibold tracking-tight">
-            Screen Localization
+            屏幕本地化
           </p>
-          <p className="text-xs text-muted-foreground">Workspace</p>
+          <p className="text-xs text-muted-foreground">工作台</p>
         </div>
       </Link>
       <div className="w-full max-w-sm">{children}</div>

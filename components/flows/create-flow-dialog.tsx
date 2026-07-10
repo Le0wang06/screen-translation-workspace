@@ -33,7 +33,7 @@ type CreateFlowDialogProps = {
 
 export function CreateFlowDialog({
   projectId,
-  triggerLabel = "New flow",
+  triggerLabel = "新建流程",
   triggerVariant = "default",
   triggerSize = "sm",
   triggerClassName,
@@ -67,7 +67,7 @@ export function CreateFlowDialog({
       };
 
       if (!response.ok) {
-        setError(payload.error ?? "Failed to create flow.");
+        setError(payload.error ?? "创建流程失败。");
         return;
       }
 
@@ -79,7 +79,7 @@ export function CreateFlowDialog({
         router.push(`/flows/${payload.flow.id}`);
       }
     } catch {
-      setError("Failed to create flow.");
+      setError("创建流程失败。");
     } finally {
       setPending(false);
     }
@@ -103,20 +103,20 @@ export function CreateFlowDialog({
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create flow</DialogTitle>
+          <DialogTitle>创建流程</DialogTitle>
           <DialogDescription>
-            A flow is an ordered walkthrough, like a checkout or onboarding path.
+            流程是一组有顺序的屏幕，例如结账路径或新手引导。
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="flow-name">Name</FieldLabel>
+              <FieldLabel htmlFor="flow-name">名称</FieldLabel>
               <Input
                 id="flow-name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Checkout walkthrough"
+                placeholder="结账流程"
                 required
               />
             </Field>
@@ -124,7 +124,7 @@ export function CreateFlowDialog({
           {error ? <FieldError errors={[{ message: error }]} /> : null}
           <DialogFooter>
             <Button type="submit" disabled={pending || !name.trim()}>
-              {pending ? "Creating…" : "Create flow"}
+              {pending ? "创建中…" : "创建流程"}
             </Button>
           </DialogFooter>
         </form>

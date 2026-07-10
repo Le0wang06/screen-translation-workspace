@@ -20,3 +20,37 @@ export async function getScreenshotSignedUrl(
 
   return data.signedUrl;
 }
+
+export async function getScreenshotSignedUrls(
+  supabase: SupabaseClient,
+  paths: Array<string | null | undefined>,
+  expiresInSeconds = 3600,
+) {
+  const uniquePaths = Array.from(
+    new Set(paths.filter((path): path is string => Boolean(path))),
+  );
+  const signedUrls: Record<string, string | null> = Object.fromEntries(
+    uniquePaths.map((path) => [path, null]),
+  );
+
+  if (uniquePaths.length === 0) {
+    return signedUrls;
+  }
+
+  const { data, error } = await supabase.storage
+    .from(SCREENSHOTS_BUCKET)
+    .createSignedUrls(uniquePaths, expiresInSeconds);
+
+  if (error || !data) {
+    return signedUrls;
+  }
+
+  data.forEach((item, index) => {
+    const path = item.path ?? uniquePaths[index];
+    if (path) {
+      signedUrls[path] = item.signedUrl ?? null;
+    }
+  });
+
+  return signedUrls;
+}

@@ -5,7 +5,7 @@ import { FlowUploadProvider } from "@/components/steps/flow-upload-provider";
 import { StepRealtimeListener } from "@/components/steps/step-realtime-listener";
 import { PageBreadcrumb } from "@/components/page-breadcrumb";
 import { createClient } from "@/lib/supabase/server";
-import { getScreenshotSignedUrl } from "@/lib/storage/signed-url";
+import { getScreenshotSignedUrls } from "@/lib/storage/signed-url";
 import { stepPreviewImagePath } from "@/lib/steps/display-image";
 
 type FlowPageProps = {
@@ -43,13 +43,16 @@ export default async function FlowPage({ params }: FlowPageProps) {
     throw new Error(stepsError.message);
   }
 
+  const thumbnailPaths = (steps ?? []).map((step) => stepPreviewImagePath(step));
+  const signedThumbnailUrls = await getScreenshotSignedUrls(
+    supabase,
+    thumbnailPaths,
+  );
   const thumbnailUrls = Object.fromEntries(
-    await Promise.all(
-      (steps ?? []).map(async (step) => [
-        step.id,
-        await getScreenshotSignedUrl(supabase, stepPreviewImagePath(step)),
-      ]),
-    ),
+    (steps ?? []).map((step) => {
+      const path = stepPreviewImagePath(step);
+      return [step.id, signedThumbnailUrls[path] ?? null];
+    }),
   );
 
   return (
@@ -59,7 +62,7 @@ export default async function FlowPage({ params }: FlowPageProps) {
         <section className="flex flex-col gap-4">
           <PageBreadcrumb
             items={[
-              { label: "Dashboard", href: "/dashboard" },
+              { label: "项目", href: "/dashboard" },
               { label: project.name, href: `/projects/${project.id}` },
               { label: flow.name },
             ]}
@@ -67,7 +70,7 @@ export default async function FlowPage({ params }: FlowPageProps) {
           <div className="max-w-2xl space-y-2">
             <h1 className="text-3xl font-semibold tracking-tight">{flow.name}</h1>
             <p className="text-muted-foreground text-pretty">
-              Upload screenshots to generate localized versions of each screen.
+              上传截图，为每个屏幕生成自然嵌入的本地化版本。
             </p>
           </div>
         </section>

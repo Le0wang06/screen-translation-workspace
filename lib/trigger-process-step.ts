@@ -20,7 +20,7 @@ async function runProcessStepInBackground(input: TriggerProcessStepInput) {
     await processStep(supabase, input);
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Failed to process screenshot.";
+      error instanceof Error ? error.message : "处理截图失败。";
     console.error(
       `[process-step] step ${input.stepId} failed:`,
       error instanceof Error ? (error.stack ?? error.message) : error,

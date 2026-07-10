@@ -58,11 +58,11 @@ export function UploadStatusBar({ status, onDismiss }: UploadStatusBarProps) {
             <>
               <p className="text-sm font-medium">
                 {status.total > 1
-                  ? `Uploading screen ${status.current} of ${status.total}`
-                  : "Uploading screenshot…"}
+                  ? `正在上传第 ${status.current} / ${status.total} 个屏幕`
+                  : "正在上传截图…"}
               </p>
               <p className="text-xs text-muted-foreground">
-                Translation starts right after upload. You can keep browsing.
+                上传后会自动开始翻译，你可以继续浏览。
               </p>
             </>
           ) : (
@@ -85,7 +85,7 @@ export function UploadStatusBar({ status, onDismiss }: UploadStatusBarProps) {
             size="icon-sm"
             className="shrink-0"
             onClick={onDismiss}
-            aria-label="Dismiss"
+            aria-label="关闭"
           >
             <X className="size-4" aria-hidden />
           </Button>

@@ -16,7 +16,4 @@ export type StepInsert = Tables["steps"]["Insert"];
 export type StepBlock = Tables["step_blocks"]["Row"];
 export type StepBlockInsert = Tables["step_blocks"]["Insert"];
 
-export type Comment = Tables["comments"]["Row"];
-export type CommentInsert = Tables["comments"]["Insert"];
-
 export type StepStatus = Step["status"];

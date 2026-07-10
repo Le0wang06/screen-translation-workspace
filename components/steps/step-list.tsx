@@ -34,10 +34,9 @@ export function StepList({ flowId, steps, thumbnailUrls }: StepListProps) {
     <Card className="border-border/70 shadow-sm">
       <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-border/60 bg-muted/20">
         <div className="space-y-1">
-          <CardTitle className="text-base">Screens</CardTitle>
+          <CardTitle className="text-base">屏幕</CardTitle>
           <CardDescription>
-            {steps.length} screen{steps.length === 1 ? "" : "s"} — scroll sideways
-            to browse, click to open
+            共 {steps.length} 个屏幕，横向滚动浏览，点击打开
           </CardDescription>
         </div>
         <UploadStepButton />

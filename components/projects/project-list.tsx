@@ -11,13 +11,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { Project } from "@/lib/db/types";
+import { formatLanguageLabel } from "@/lib/languages";
 
 type ProjectListProps = {
   projects: Project[];
 };
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat("zh-CN", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -33,13 +34,13 @@ export function ProjectList({ projects }: ProjectListProps) {
             <FolderKanban className="size-6 text-muted-foreground" aria-hidden />
           </div>
           <div className="max-w-sm space-y-1">
-            <p className="text-sm font-medium">No projects yet</p>
+            <p className="text-sm font-medium">还没有项目</p>
             <p className="text-sm text-muted-foreground text-pretty">
-              Create one to get started with your first localized walkthrough.
+              创建一个项目，开始整理第一条本地化流程。
             </p>
           </div>
           <CreateProjectDialog
-            triggerLabel="Create project"
+            triggerLabel="创建项目"
             triggerSize="default"
             triggerIcon={<ArrowRight className="size-4" aria-hidden />}
           />
@@ -52,10 +53,8 @@ export function ProjectList({ projects }: ProjectListProps) {
     <Card className="border-border/70 shadow-sm">
       <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-border/60 bg-muted/20">
         <div className="space-y-1">
-          <CardTitle className="text-base">Projects</CardTitle>
-          <CardDescription>
-            {projects.length} project{projects.length === 1 ? "" : "s"}
-          </CardDescription>
+          <CardTitle className="text-base">项目</CardTitle>
+          <CardDescription>共 {projects.length} 个项目</CardDescription>
         </div>
         <CreateProjectDialog />
       </CardHeader>
@@ -70,11 +69,13 @@ export function ProjectList({ projects }: ProjectListProps) {
                 <div className="min-w-0 space-y-1">
                   <p className="truncate font-medium">{project.name}</p>
                   <p className="text-sm text-muted-foreground">
-                    Created {formatDate(project.created_at)}
+                    创建于 {formatDate(project.created_at)}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <Badge variant="outline">→ {project.target_language}</Badge>
+                  <Badge variant="outline">
+                    → {formatLanguageLabel(project.target_language)}
+                  </Badge>
                   <ArrowRight className="size-4 text-muted-foreground" aria-hidden />
                 </div>
               </Link>

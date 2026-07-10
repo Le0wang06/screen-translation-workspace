@@ -9,7 +9,7 @@ type ProcessingImagePlaceholderProps = {
 };
 
 export function ProcessingImagePlaceholder({
-  label = "Generating translated screenshot…",
+  label = "正在生成翻译截图…",
   originalImageUrl,
 }: ProcessingImagePlaceholderProps) {
   return (
@@ -40,7 +40,7 @@ export function ProcessingImagePlaceholder({
             {label}
           </p>
           <p className="max-w-xs text-xs text-muted-foreground text-pretty">
-            Usually 15–25 seconds. This page updates automatically when ready.
+            通常需要 15-25 秒。完成后页面会自动更新。
           </p>
         </div>
       </div>

@@ -55,7 +55,7 @@ export function imageFromDataTransfer(clipboardData: DataTransfer | null) {
 
 export async function imageFromClipboardApi() {
   if (!navigator.clipboard?.read) {
-    throw new Error("Clipboard access is not supported in this browser.");
+    throw new Error("当前浏览器不支持读取剪贴板。");
   }
 
   const items = await navigator.clipboard.read();
