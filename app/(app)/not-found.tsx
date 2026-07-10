@@ -8,14 +8,13 @@ export default function AppNotFound() {
     <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 text-center">
       <div className="space-y-2">
         <p className="text-sm font-medium text-muted-foreground">404</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Page not found</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">页面不存在</h1>
         <p className="max-w-md text-sm text-muted-foreground text-pretty">
-          This project, flow, or screen doesn&apos;t exist or you don&apos;t have
-          access to it.
+          这个项目、流程或屏幕不存在，或你没有访问权限。
         </p>
       </div>
       <Link href="/dashboard" className={cn(buttonVariants({ variant: "default" }))}>
-        Back to dashboard
+        返回项目页
       </Link>
     </div>
   );

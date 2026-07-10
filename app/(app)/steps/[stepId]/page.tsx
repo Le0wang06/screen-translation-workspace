@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { FlowUploadProvider } from "@/components/steps/flow-upload-provider";
 import { FlowStepWorkspace } from "@/components/steps/flow-step-workspace";
 import { StepRealtimeListener } from "@/components/steps/step-realtime-listener";
-import type { Comment } from "@/lib/db/types";
 import { createClient } from "@/lib/supabase/server";
 import { getScreenshotSignedUrls } from "@/lib/storage/signed-url";
 import { stepPreviewImagePath } from "@/lib/steps/display-image";
@@ -15,9 +14,6 @@ type StepPageProps = {
 export default async function StepPage({ params }: StepPageProps) {
   const { stepId } = await params;
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   const { data: step, error } = await supabase
     .from("steps")
@@ -66,7 +62,6 @@ export default async function StepPage({ params }: StepPageProps) {
       return [flowStep.id, signedImageUrls[path] ?? null];
     }),
   );
-
   const stepImageUrls = Object.fromEntries(
     steps.map((flowStep) => [
       flowStep.id,
@@ -76,32 +71,6 @@ export default async function StepPage({ params }: StepPageProps) {
           ? signedImageUrls[flowStep.translated_image_url] ?? null
           : null,
       },
-    ]),
-  );
-
-  const stepIds = steps.map((flowStep) => flowStep.id);
-  const { data: comments, error: commentsError } = await supabase
-    .from("comments")
-    .select("*")
-    .in("step_id", stepIds.length > 0 ? stepIds : [stepId])
-    .order("created_at", { ascending: true });
-
-  if (commentsError) {
-    throw new Error(commentsError.message);
-  }
-
-  const commentsByStepId: Record<string, Comment[]> = Object.fromEntries(
-    steps.map((flowStep) => [flowStep.id, []]),
-  );
-  (comments ?? []).forEach((comment) => {
-    commentsByStepId[comment.step_id] ??= [];
-    commentsByStepId[comment.step_id].push(comment);
-  });
-
-  const authorEmails = Object.fromEntries(
-    (comments ?? []).map((comment) => [
-      comment.author_id,
-      comment.author_id === user?.id ? user.email ?? "You" : "Teammate",
     ]),
   );
 
@@ -115,8 +84,6 @@ export default async function StepPage({ params }: StepPageProps) {
           steps={steps}
           thumbnailUrls={stepThumbnailUrls}
           imageUrls={stepImageUrls}
-          commentsByStepId={commentsByStepId}
-          authorEmails={authorEmails}
         />
       </StepRealtimeListener>
     </FlowUploadProvider>

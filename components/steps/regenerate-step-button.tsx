@@ -44,7 +44,7 @@ export function RegenerateStepButton({
       const payload = (await response.json()) as { error?: string };
 
       if (!response.ok) {
-        setError(payload.error ?? "Could not regenerate this screen.");
+        setError(payload.error ?? "无法重新生成此屏幕。");
         return;
       }
 
@@ -52,7 +52,7 @@ export function RegenerateStepButton({
       setNotes("");
       router.refresh();
     } catch {
-      setError("Could not regenerate this screen.");
+      setError("无法重新生成此屏幕。");
     } finally {
       setPending(false);
     }
@@ -72,21 +72,20 @@ export function RegenerateStepButton({
         }
       >
         <Sparkles className="size-4" aria-hidden />
-        Re-generate
+        重新生成
       </DialogTrigger>
       <DialogContent showCloseButton={!pending}>
         <DialogHeader>
-          <DialogTitle>Re-generate translated screen</DialogTitle>
+          <DialogTitle>重新生成翻译屏幕</DialogTitle>
           <DialogDescription>
-            AI will recreate the localized screenshot from the original. Add
-            optional notes to guide the translation.
+            AI 会基于原图重新生成本地化截图。可添加说明来调整翻译。
           </DialogDescription>
         </DialogHeader>
         <textarea
           value={notes}
           disabled={pending}
           rows={4}
-          placeholder='e.g. Use "Checkout" instead of "Cart" on the main button'
+          placeholder="例如：主按钮用“确认支付”，不要用“立即付款”"
           className="w-full resize-y rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
           onChange={(event) => setNotes(event.target.value)}
         />
@@ -98,14 +97,14 @@ export function RegenerateStepButton({
             disabled={pending}
             onClick={() => setOpen(false)}
           >
-            Cancel
+            取消
           </Button>
           <Button
             type="button"
             disabled={pending}
             onClick={() => void handleRegenerate()}
           >
-            {pending ? "Starting…" : "Re-generate"}
+            {pending ? "开始中…" : "重新生成"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -37,7 +37,7 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   if (!flow) {
-    return notFound("Flow not found.");
+    return notFound("流程不存在。");
   }
 
   const { data, error } = await supabase
@@ -70,22 +70,22 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   if (!flow) {
-    return notFound("Flow not found.");
+    return notFound("流程不存在。");
   }
 
   const formData = await request.formData();
   const file = formData.get("file");
 
   if (!(file instanceof File)) {
-    return badRequest("Screenshot file is required.");
+    return badRequest("请上传截图文件。");
   }
 
   if (!file.type.startsWith("image/")) {
-    return badRequest("Only image uploads are supported.");
+    return badRequest("仅支持上传图片。");
   }
 
   if (file.size > MAX_FILE_SIZE) {
-    return badRequest("Screenshot must be 10 MB or smaller.");
+    return badRequest("截图不能超过 10 MB。");
   }
 
   const project = flow.projects;
@@ -119,7 +119,7 @@ export async function POST(request: Request, context: RouteContext) {
     .single();
 
   if (stepError || !step) {
-    return serverError(stepError?.message ?? "Failed to create step.");
+    return serverError(stepError?.message ?? "创建屏幕失败。");
   }
 
   const storagePath = screenshotStoragePath(

@@ -9,7 +9,6 @@ import { PresentationMode } from "@/components/steps/presentation-mode";
 import { ProcessingImagePlaceholder } from "@/components/steps/processing-image-placeholder";
 import { RegenerateStepButton } from "@/components/steps/regenerate-step-button";
 import { RetryStepButton } from "@/components/steps/retry-step-button";
-import { StepComments } from "@/components/steps/step-comments";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,7 +17,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { Comment, Step, StepStatus } from "@/lib/db/types";
+import type { Step, StepStatus } from "@/lib/db/types";
+import { formatLanguageLabel } from "@/lib/languages";
 import { cn } from "@/lib/utils";
 
 type ViewMode = "split" | "compare";
@@ -39,8 +39,6 @@ type StepViewProps = {
     string,
     { original: string | null; translated: string | null }
   >;
-  initialComments: Comment[];
-  authorEmails: Record<string, string>;
 };
 
 export function StepView({
@@ -50,8 +48,6 @@ export function StepView({
   originalImageUrl,
   translatedImageUrl,
   presentationImages,
-  initialComments,
-  authorEmails,
 }: StepViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("split");
   const [presenting, setPresenting] = useState(false);
@@ -94,7 +90,7 @@ export function StepView({
             onClick={() => setViewMode("split")}
           >
             <PanelsLeftRight className="size-4" aria-hidden />
-            Side by side
+            并排
           </Button>
           <Button
             type="button"
@@ -105,7 +101,7 @@ export function StepView({
             onClick={() => setViewMode("compare")}
           >
             <SplitSquareHorizontal className="size-4" aria-hidden />
-            Compare
+            对比
           </Button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -127,7 +123,7 @@ export function StepView({
             onClick={() => setPresenting(true)}
           >
             <Maximize2 className="size-4" aria-hidden />
-            Present
+            演示
           </Button>
         </div>
       </div>
@@ -135,54 +131,47 @@ export function StepView({
       {viewMode === "compare" && canCompare ? (
         <Card className="overflow-hidden border-border/70 shadow-sm">
           <CardHeader className="border-b border-border/60 bg-muted/20">
-            <CardTitle className="text-base">Compare</CardTitle>
+            <CardTitle className="text-base">对比</CardTitle>
             <CardDescription>
-              Drag the slider to compare Original and Translated
+              拖动滑块对比原图和译图
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 sm:p-6">
             <ImageCompareSlider
               originalUrl={originalImageUrl!}
               translatedUrl={translatedImageUrl!}
-              originalAlt={step.title || "Original screenshot"}
-              translatedAlt={step.title || "Translated screenshot"}
+              originalAlt={step.title || "原始截图"}
+              translatedAlt={step.title || "翻译后截图"}
             />
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
           <ScreenCard
-            title="Original"
-            description="Uploaded screenshot"
+            title="原图"
+            description="已上传截图"
             imageUrl={originalImageUrl}
-            alt={step.title || "Original screenshot"}
-            emptyLabel="Original unavailable"
+            alt={step.title || "原始截图"}
+            emptyLabel="原图不可用"
           />
           <ScreenCard
-            title="Translated"
+            title="译图"
             description={
               step.status === "processing"
-                ? "AI is translating text on this screen."
-                : `Text translated to ${step.target_language}`
+                ? "AI 正在翻译此屏幕。"
+                : `已翻译为${formatLanguageLabel(step.target_language)}`
             }
             imageUrl={translatedImageUrl}
-            alt={step.title || "Translated screenshot"}
+            alt={step.title || "翻译后截图"}
             processing={step.status === "processing"}
             processingOriginalUrl={originalImageUrl}
-            emptyLabel="Translated screenshot not available yet."
+            emptyLabel="翻译后截图暂不可用。"
             failed={step.status === "failed"}
             errorMessage={step.error_message}
             stepId={stepId}
           />
         </div>
       )}
-
-      <StepComments
-        key={stepId}
-        stepId={stepId}
-        initialComments={initialComments}
-        authorEmails={authorEmails}
-      />
 
       {presenting ? (
         <PresentationMode

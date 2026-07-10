@@ -13,7 +13,7 @@ export async function requireUser() {
     return {
       user: null,
       supabase,
-      unauthorized: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      unauthorized: NextResponse.json({ error: "未登录。" }, { status: 401 }),
     };
   }
 
@@ -24,10 +24,10 @@ export function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
 }
 
-export function notFound(message = "Not found") {
+export function notFound(message = "未找到。") {
   return NextResponse.json({ error: message }, { status: 404 });
 }
 
-export function serverError(message = "Internal server error") {
+export function serverError(message = "服务器错误。") {
   return NextResponse.json({ error: message }, { status: 500 });
 }

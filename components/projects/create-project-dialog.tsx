@@ -21,17 +21,8 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "@/lib/languages";
 import { cn } from "@/lib/utils";
-
-const TARGET_LANGUAGES = [
-  { value: "en", label: "English" },
-  { value: "zh", label: "Chinese" },
-  { value: "ja", label: "Japanese" },
-  { value: "ko", label: "Korean" },
-  { value: "es", label: "Spanish" },
-  { value: "fr", label: "French" },
-  { value: "de", label: "German" },
-] as const;
 
 type CreateProjectDialogProps = {
   triggerLabel?: string;
@@ -42,7 +33,7 @@ type CreateProjectDialogProps = {
 };
 
 export function CreateProjectDialog({
-  triggerLabel = "New project",
+  triggerLabel = "新建项目",
   triggerVariant = "default",
   triggerSize = "sm",
   triggerClassName,
@@ -52,14 +43,14 @@ export function CreateProjectDialog({
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [sourceLanguage, setSourceLanguage] = useState("");
-  const [targetLanguage, setTargetLanguage] = useState("en");
+  const [targetLanguage, setTargetLanguage] = useState(DEFAULT_TARGET_LANGUAGE);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   function resetForm() {
     setName("");
     setSourceLanguage("");
-    setTargetLanguage("en");
+    setTargetLanguage(DEFAULT_TARGET_LANGUAGE);
     setError(null);
   }
 
@@ -85,7 +76,7 @@ export function CreateProjectDialog({
       };
 
       if (!response.ok) {
-        setError(payload.error ?? "Failed to create project.");
+        setError(payload.error ?? "创建项目失败。");
         return;
       }
 
@@ -97,7 +88,7 @@ export function CreateProjectDialog({
         router.push(`/projects/${payload.project.id}`);
       }
     } catch {
-      setError("Failed to create project.");
+      setError("创建项目失败。");
     } finally {
       setPending(false);
     }
@@ -123,37 +114,36 @@ export function CreateProjectDialog({
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create project</DialogTitle>
+          <DialogTitle>创建项目</DialogTitle>
           <DialogDescription>
-            Group flows and screenshots under one product or locale.
+            用一个项目管理同一产品或语言版本的流程和截图。
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="project-name">Name</FieldLabel>
+              <FieldLabel htmlFor="project-name">名称</FieldLabel>
               <Input
                 id="project-name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Supplier App"
+                placeholder="供应商应用"
                 required
               />
             </Field>
             <Field>
               <FieldLabel htmlFor="source-language">
-                Source language{" "}
-                <span className="text-muted-foreground">(optional)</span>
+                源语言 <span className="text-muted-foreground">（可选）</span>
               </FieldLabel>
               <Input
                 id="source-language"
                 value={sourceLanguage}
                 onChange={(event) => setSourceLanguage(event.target.value)}
-                placeholder="zh"
+                placeholder="en"
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="target-language">Target language</FieldLabel>
+              <FieldLabel htmlFor="target-language">目标语言</FieldLabel>
               <select
                 id="target-language"
                 value={targetLanguage}
@@ -171,7 +161,7 @@ export function CreateProjectDialog({
           {error ? <FieldError errors={[{ message: error }]} /> : null}
           <DialogFooter>
             <Button type="submit" disabled={pending || !name.trim()}>
-              {pending ? "Creating…" : "Create project"}
+              {pending ? "创建中…" : "创建项目"}
             </Button>
           </DialogFooter>
         </form>

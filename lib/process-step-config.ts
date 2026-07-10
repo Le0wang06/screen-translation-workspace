@@ -24,8 +24,8 @@ export const PROCESS_IMAGE_OUTPUT_COMPRESSION = Number(
   process.env.PROCESS_IMAGE_OUTPUT_COMPRESSION ?? "88",
 );
 
-export const PLACEHOLDER_STEP_TITLE = "Localized screen";
-export const PLACEHOLDER_STEP_SUMMARY = "Localized UI screenshot";
+export const PLACEHOLDER_STEP_TITLE = "本地化屏幕";
+export const PLACEHOLDER_STEP_SUMMARY = "已本地化的界面截图";
 
 export function resolveOutputFormat(
   sourceFormat: ImageOutputFormat,

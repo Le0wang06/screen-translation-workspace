@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { FlowList } from "@/components/flows/flow-list";
 import { PageBreadcrumb } from "@/components/page-breadcrumb";
 import { Badge } from "@/components/ui/badge";
+import { formatLanguageLabel } from "@/lib/languages";
 import { createClient } from "@/lib/supabase/server";
 
 type ProjectPageProps = {
@@ -43,20 +44,23 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       <section className="flex flex-col gap-4">
         <PageBreadcrumb
           items={[
-            { label: "Dashboard", href: "/dashboard" },
+            { label: "项目", href: "/dashboard" },
             { label: project.name },
           ]}
         />
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
-          <Badge variant="outline">Target: {project.target_language}</Badge>
+          <Badge variant="outline">
+            目标：{formatLanguageLabel(project.target_language)}
+          </Badge>
           {project.source_language ? (
-            <Badge variant="secondary">Source: {project.source_language}</Badge>
+            <Badge variant="secondary">
+              源语言：{formatLanguageLabel(project.source_language)}
+            </Badge>
           ) : null}
         </div>
         <p className="max-w-2xl text-muted-foreground text-pretty">
-          Flows are ordered walkthroughs. Create one, then upload screenshots to
-          generate translated screens.
+          流程是按顺序整理的产品路径。创建流程后上传截图，即可生成翻译后的屏幕。
         </p>
       </section>
 

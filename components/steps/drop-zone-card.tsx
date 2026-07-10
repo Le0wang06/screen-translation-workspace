@@ -51,10 +51,10 @@ export function DropZoneCard({ compact = false }: DropZoneCardProps) {
       </div>
       <div className="space-y-1">
         <p className={cn("font-medium", compact ? "text-sm" : "text-base")}>
-          {isDragging ? "Drop screenshot here" : "Drop a screenshot here"}
+          {isDragging ? "把截图放到这里" : "拖入截图"}
         </p>
         <p className="text-xs text-muted-foreground text-pretty">
-          Click to browse, paste with ⌘V, or drop multiple screenshots.
+          点击选择、按 ⌘V 粘贴，或一次拖入多张截图。
         </p>
       </div>
     </div>

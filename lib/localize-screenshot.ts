@@ -54,7 +54,7 @@ Rules:
 
 function buildMetadataPrompt(targetLanguage: string) {
   return `Return JSON only:
-{"title":"short screen title in ${targetLanguage}","summary":"one English sentence about what the user is doing","source_language":"iso code"}`;
+{"title":"short screen title in ${targetLanguage}","summary":"one concise sentence in ${targetLanguage} about what the user is doing","source_language":"iso code"}`;
 }
 
 function bufferToDataUrl(buffer: Buffer, mime: string) {
@@ -246,7 +246,7 @@ export async function localizeScreenshot(
 
   const imageBase64 = imageResponse.data?.[0]?.b64_json;
   if (!imageBase64) {
-    throw new Error("AI did not return a localized screenshot.");
+    throw new Error("AI 未返回本地化截图。");
   }
 
   return {

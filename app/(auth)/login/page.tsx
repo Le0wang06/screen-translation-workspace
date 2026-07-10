@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 
 export const metadata: Metadata = {
-  title: "Sign in",
+  title: "登录",
 };
 
 type LoginPageProps = {
@@ -26,9 +26,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   return (
     <Card className="border-border/70 shadow-md">
       <CardHeader className="text-center">
-        <CardTitle className="text-xl">Welcome back</CardTitle>
+        <CardTitle className="text-xl">欢迎回来</CardTitle>
         <CardDescription>
-          Sign in or create an account to manage localization projects.
+          登录或创建账号，管理你的截图本地化项目。
         </CardDescription>
       </CardHeader>
       <CardContent>

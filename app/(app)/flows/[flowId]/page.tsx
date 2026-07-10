@@ -62,7 +62,7 @@ export default async function FlowPage({ params }: FlowPageProps) {
         <section className="flex flex-col gap-4">
           <PageBreadcrumb
             items={[
-              { label: "Dashboard", href: "/dashboard" },
+              { label: "项目", href: "/dashboard" },
               { label: project.name, href: `/projects/${project.id}` },
               { label: flow.name },
             ]}
@@ -70,7 +70,7 @@ export default async function FlowPage({ params }: FlowPageProps) {
           <div className="max-w-2xl space-y-2">
             <h1 className="text-3xl font-semibold tracking-tight">{flow.name}</h1>
             <p className="text-muted-foreground text-pretty">
-              Upload screenshots to generate localized versions of each screen.
+              上传截图，为每个屏幕生成自然嵌入的本地化版本。
             </p>
           </div>
         </section>

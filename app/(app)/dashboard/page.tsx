@@ -18,11 +18,10 @@ export default async function DashboardPage() {
       <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-2xl space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-            Projects
+            项目
           </h1>
           <p className="text-base leading-relaxed text-muted-foreground text-pretty">
-            Each project groups flows and screenshot steps for one product or
-            locale.
+            每个项目用于管理一个产品或语言版本的流程和截图。
           </p>
         </div>
         <CreateProjectDialog />

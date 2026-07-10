@@ -42,7 +42,7 @@ export function StepEditableHeader({
     const current = field === "title" ? title ?? "" : summary ?? "";
 
     if (field === "title" && !trimmed) {
-      setError("Title cannot be empty.");
+      setError("标题不能为空。");
       setTitleValue(title ?? "");
       return;
     }
@@ -63,7 +63,7 @@ export function StepEditableHeader({
       const payload = (await response.json()) as { error?: string };
 
       if (!response.ok) {
-        setError(payload.error ?? "Could not save changes.");
+        setError(payload.error ?? "保存失败。");
         if (field === "title") setTitleValue(title ?? "");
         if (field === "summary") setSummaryValue(summary ?? "");
         return;
@@ -71,7 +71,7 @@ export function StepEditableHeader({
 
       router.refresh();
     } catch {
-      setError("Could not save changes.");
+      setError("保存失败。");
       if (field === "title") setTitleValue(title ?? "");
       if (field === "summary") setSummaryValue(summary ?? "");
     } finally {
@@ -113,7 +113,7 @@ export function StepEditableHeader({
             )}
             onClick={startEditingTitle}
           >
-            <span>{title || "Untitled screen"}</span>
+            <span>{title || "未命名屏幕"}</span>
             <Pencil className="mt-2 size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
           </button>
         )}
@@ -130,7 +130,7 @@ export function StepEditableHeader({
               "w-full resize-y rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none",
               "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
             )}
-            placeholder="Add a short summary of what happens on this screen…"
+            placeholder="补充这张屏幕的简短说明…"
             onChange={(event) => setSummaryValue(event.target.value)}
             onBlur={() => {
               setEditingSummary(false);
@@ -153,7 +153,7 @@ export function StepEditableHeader({
             )}
             onClick={startEditingSummary}
           >
-            <span>{summary || "Add a summary…"}</span>
+            <span>{summary || "添加说明…"}</span>
             <Pencil className="mt-0.5 size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
           </button>
         )}

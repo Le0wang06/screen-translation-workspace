@@ -25,9 +25,9 @@ export async function AppHeader() {
           </div>
           <div className="min-w-0 leading-tight">
             <p className="truncate text-sm font-semibold tracking-tight">
-              Screen Localization
+              屏幕本地化
             </p>
-            <p className="truncate text-xs text-muted-foreground">Workspace</p>
+            <p className="truncate text-xs text-muted-foreground">工作台</p>
           </div>
         </Link>
 
@@ -45,7 +45,7 @@ export async function AppHeader() {
               href="/login"
               className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
             >
-              Sign in
+              登录
             </Link>
           )}
         </div>

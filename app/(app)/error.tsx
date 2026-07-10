@@ -23,10 +23,9 @@ export default function AppError({ error, reset }: AppErrorProps) {
         <AlertCircle className="size-6" aria-hidden />
       </div>
       <div className="max-w-md space-y-2">
-        <h1 className="text-xl font-semibold">Something went wrong</h1>
+        <h1 className="text-xl font-semibold">页面出错了</h1>
         <p className="text-sm text-muted-foreground text-pretty">
-          We couldn&apos;t load this page. Try again, or head back to your
-          dashboard.
+          当前页面无法加载。你可以重试，或回到项目页。
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
@@ -35,10 +34,10 @@ export default function AppError({ error, reset }: AppErrorProps) {
           onClick={reset}
           className={cn(buttonVariants({ variant: "default" }))}
         >
-          Try again
+          重试
         </button>
         <Link href="/dashboard" className={cn(buttonVariants({ variant: "outline" }))}>
-          Go to dashboard
+          返回项目页
         </Link>
       </div>
     </div>

@@ -16,5 +16,6 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=Could+not+authenticate`);
+  const errorMessage = encodeURIComponent("认证失败，请重新登录。");
+  return NextResponse.redirect(`${origin}/login?error=${errorMessage}`);
 }

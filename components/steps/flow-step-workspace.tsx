@@ -9,7 +9,7 @@ import { StepEditableHeader } from "@/components/steps/step-editable-header";
 import { StepNavigation } from "@/components/steps/step-navigation";
 import { StepStatusBadge } from "@/components/steps/step-status-badge";
 import { StepView } from "@/components/steps/step-view";
-import type { Comment, Step } from "@/lib/db/types";
+import type { Step } from "@/lib/db/types";
 import { preloadBrowserImages } from "@/lib/preload-image";
 
 type StepImages = {
@@ -30,8 +30,6 @@ type FlowStepWorkspaceProps = {
   steps: Step[];
   thumbnailUrls: Record<string, string | null>;
   imageUrls: Record<string, StepImages>;
-  commentsByStepId: Record<string, Comment[]>;
-  authorEmails: Record<string, string>;
 };
 
 function stepIdFromPath(pathname: string) {
@@ -46,8 +44,6 @@ export function FlowStepWorkspace({
   steps,
   thumbnailUrls,
   imageUrls,
-  commentsByStepId,
-  authorEmails,
 }: FlowStepWorkspaceProps) {
   const stepIds = useMemo(() => new Set(steps.map((step) => step.id)), [steps]);
   const fallbackStepId = steps[0]?.id ?? initialStepId;
@@ -119,10 +115,10 @@ export function FlowStepWorkspace({
       <section className="flex flex-col gap-4">
         <PageBreadcrumb
           items={[
-            { label: "Dashboard", href: "/dashboard" },
+            { label: "项目", href: "/dashboard" },
             { label: project.name, href: `/projects/${project.id}` },
             { label: flow.name, href: `/flows/${flow.id}` },
-            { label: currentStep.title || "Screen" },
+            { label: currentStep.title || "屏幕" },
           ]}
         />
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -172,8 +168,6 @@ export function FlowStepWorkspace({
         originalImageUrl={currentImages?.original ?? null}
         translatedImageUrl={currentImages?.translated ?? null}
         presentationImages={imageUrls}
-        initialComments={commentsByStepId[currentStep.id] ?? []}
-        authorEmails={authorEmails}
       />
     </div>
   );

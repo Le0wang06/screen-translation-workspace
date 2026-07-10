@@ -50,7 +50,7 @@ export function DeleteStepButton({
       };
 
       if (!response.ok) {
-        setError(payload.error ?? "Could not delete this screen.");
+        setError(payload.error ?? "无法删除此屏幕。");
         return;
       }
 
@@ -58,7 +58,7 @@ export function DeleteStepButton({
       router.push(`/flows/${payload.flowId ?? flowId}`);
       router.refresh();
     } catch {
-      setError("Could not delete this screen.");
+      setError("无法删除此屏幕。");
     } finally {
       setPending(false);
     }
@@ -72,15 +72,15 @@ export function DeleteStepButton({
         }
       >
         <Trash2 className="size-4" aria-hidden />
-        Delete
+        删除
       </DialogTrigger>
       <DialogContent showCloseButton={!pending}>
         <DialogHeader>
-          <DialogTitle>Delete screen?</DialogTitle>
+          <DialogTitle>删除屏幕？</DialogTitle>
           <DialogDescription>
             {stepTitle
-              ? `"${stepTitle}" and its screenshots will be permanently removed.`
-              : "This screen and its screenshots will be permanently removed."}
+              ? `“${stepTitle}”及其截图将被永久删除。`
+              : "此屏幕及其截图将被永久删除。"}
           </DialogDescription>
         </DialogHeader>
         {error ? <FieldError errors={[{ message: error }]} /> : null}
@@ -91,7 +91,7 @@ export function DeleteStepButton({
             disabled={pending}
             onClick={() => setOpen(false)}
           >
-            Cancel
+            取消
           </Button>
           <Button
             type="button"
@@ -99,7 +99,7 @@ export function DeleteStepButton({
             disabled={pending}
             onClick={() => void handleDelete()}
           >
-            {pending ? "Deleting…" : "Delete screen"}
+            {pending ? "删除中…" : "删除屏幕"}
           </Button>
         </DialogFooter>
       </DialogContent>

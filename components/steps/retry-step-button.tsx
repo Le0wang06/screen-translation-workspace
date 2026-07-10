@@ -27,13 +27,13 @@ export function RetryStepButton({ stepId }: RetryStepButtonProps) {
       const payload = (await response.json()) as { error?: string };
 
       if (!response.ok) {
-        setError(payload.error ?? "Could not retry this step.");
+        setError(payload.error ?? "无法重试此屏幕。");
         return;
       }
 
       router.refresh();
     } catch {
-      setError("Could not retry this step.");
+      setError("无法重试此屏幕。");
     } finally {
       setPending(false);
     }
@@ -49,7 +49,7 @@ export function RetryStepButton({ stepId }: RetryStepButtonProps) {
         onClick={() => void handleRetry()}
       >
         <RotateCcw className={pending ? "size-4 animate-spin" : "size-4"} aria-hidden />
-        {pending ? "Retrying…" : "Try again"}
+        {pending ? "重试中…" : "重试"}
       </Button>
       {error ? <FieldError errors={[{ message: error }]} /> : null}
     </div>

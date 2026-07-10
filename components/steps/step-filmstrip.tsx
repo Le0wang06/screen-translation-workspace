@@ -155,7 +155,7 @@ export function StepFilmstrip({
                   type="button"
                   draggable
                   className="mt-3 flex h-8 w-5 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground hover:bg-muted/60 active:cursor-grabbing"
-                  aria-label={`Reorder ${step.title || `step ${index + 1}`}`}
+                  aria-label={`调整顺序：${step.title || `第 ${index + 1} 步`}`}
                   onDragStart={() => setDraggedId(step.id)}
                   onDragEnd={() => {
                     setDraggedId(null);
@@ -217,7 +217,7 @@ function StepFilmstripCard({
         {thumbnailUrl ? (
           <Image
             src={thumbnailUrl}
-            alt={step.title || `Screen ${index + 1}`}
+            alt={step.title || `第 ${index + 1} 个屏幕`}
             fill
             className="object-contain object-top"
             sizes="160px"
@@ -225,13 +225,13 @@ function StepFilmstripCard({
           />
         ) : (
           <div className="flex size-full items-center justify-center text-xs text-muted-foreground">
-            —
+            -
           </div>
         )}
         {step.status === "processing" ? (
           <div className="absolute inset-0 flex items-center justify-center bg-background/55 backdrop-blur-[1px]">
             <span className="rounded-full bg-background/90 px-2 py-1 text-[10px] font-medium text-primary shadow-sm">
-              Processing
+              处理中
             </span>
           </div>
         ) : null}
@@ -241,7 +241,7 @@ function StepFilmstripCard({
       </div>
       <div className="min-w-0 space-y-1 px-0.5">
         <p className="truncate text-xs font-medium">
-          {step.title || `Step ${index + 1}`}
+          {step.title || `第 ${index + 1} 步`}
         </p>
         <StepStatusBadge status={step.status} className="text-[10px]" />
       </div>

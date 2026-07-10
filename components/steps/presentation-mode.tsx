@@ -69,10 +69,10 @@ export function PresentationMode({
       <header className="flex items-center justify-between gap-4 border-b border-border/60 px-4 py-3 sm:px-6">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">
-            {step.title || `Screen ${index + 1}`}
+            {step.title || `第 ${index + 1} 个屏幕`}
           </p>
           <p className="text-xs text-muted-foreground tabular-nums">
-            {index + 1} of {steps.length}
+            {index + 1} / {steps.length}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -97,13 +97,13 @@ export function PresentationMode({
             className={cn(buttonVariants({ variant: "secondary", size: "sm" }))}
             onClick={onClose}
           >
-            Exit
+            退出
           </button>
           <button
             type="button"
             className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }))}
             onClick={onClose}
-            aria-label="Close presentation"
+            aria-label="关闭演示"
           >
             <X className="size-4" />
           </button>
@@ -114,7 +114,7 @@ export function PresentationMode({
           <div className="relative h-full w-full max-w-6xl">
             <Image
               src={displayUrl}
-              alt={step.title || "Presentation screen"}
+              alt={step.title || "演示屏幕"}
               fill
               className="object-contain"
               sizes="100vw"
@@ -125,8 +125,8 @@ export function PresentationMode({
         ) : (
           <p className="text-sm text-muted-foreground">
             {step.status === "processing"
-              ? "This screen is still processing…"
-              : "Screenshot unavailable"}
+              ? "此屏幕仍在处理中…"
+              : "截图不可用"}
           </p>
         )}
       </div>

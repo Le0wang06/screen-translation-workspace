@@ -44,8 +44,8 @@ export function LoginForm({ redirectTo, initialError }: LoginFormProps) {
       <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
         {(
           [
-            ["sign-in", "Sign in"],
-            ["sign-up", "Create account"],
+            ["sign-in", "登录"],
+            ["sign-up", "创建账号"],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -69,7 +69,7 @@ export function LoginForm({ redirectTo, initialError }: LoginFormProps) {
 
         <FieldGroup>
           <Field>
-            <FieldLabel htmlFor="email">Email</FieldLabel>
+            <FieldLabel htmlFor="email">邮箱</FieldLabel>
             <Input
               id="email"
               name="email"
@@ -81,7 +81,7 @@ export function LoginForm({ redirectTo, initialError }: LoginFormProps) {
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="password">Password</FieldLabel>
+            <FieldLabel htmlFor="password">密码</FieldLabel>
             <Input
               id="password"
               name="password"
@@ -108,10 +108,10 @@ export function LoginForm({ redirectTo, initialError }: LoginFormProps) {
 
         <Button type="submit" className="w-full" disabled={pending}>
           {pending
-            ? "Please wait…"
+            ? "请稍候…"
             : mode === "sign-in"
-              ? "Sign in"
-              : "Create account"}
+              ? "登录"
+              : "创建账号"}
         </Button>
       </form>
     </div>
