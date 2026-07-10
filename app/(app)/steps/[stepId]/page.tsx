@@ -1,16 +1,11 @@
 import { notFound } from "next/navigation";
 
-import { PageBreadcrumb } from "@/components/page-breadcrumb";
-import { DeleteStepButton } from "@/components/steps/delete-step-button";
 import { FlowUploadProvider } from "@/components/steps/flow-upload-provider";
-import { RetryStepButton } from "@/components/steps/retry-step-button";
-import { StepEditableHeader } from "@/components/steps/step-editable-header";
-import { StepNavigation } from "@/components/steps/step-navigation";
+import { FlowStepWorkspace } from "@/components/steps/flow-step-workspace";
 import { StepRealtimeListener } from "@/components/steps/step-realtime-listener";
-import { StepStatusBadge } from "@/components/steps/step-status-badge";
-import { StepView } from "@/components/steps/step-view";
+import type { Comment } from "@/lib/db/types";
 import { createClient } from "@/lib/supabase/server";
-import { getScreenshotSignedUrl } from "@/lib/storage/signed-url";
+import { getScreenshotSignedUrls } from "@/lib/storage/signed-url";
 import { stepPreviewImagePath } from "@/lib/steps/display-image";
 
 type StepPageProps = {
@@ -43,11 +38,6 @@ export default async function StepPage({ params }: StepPageProps) {
   const flow = step.flows;
   const project = step.projects;
 
-  const originalImageUrl = await getScreenshotSignedUrl(supabase, step.image_url);
-  const translatedImageUrl = step.translated_image_url
-    ? await getScreenshotSignedUrl(supabase, step.translated_image_url)
-    : null;
-
   const { data: flowSteps, error: flowStepsError } = await supabase
     .from("steps")
     .select("*")
@@ -59,42 +49,54 @@ export default async function StepPage({ params }: StepPageProps) {
     throw new Error(flowStepsError.message);
   }
 
+  const steps = flowSteps ?? [];
+  const thumbnailPaths = steps.map((flowStep) => stepPreviewImagePath(flowStep));
+  const fullImagePaths = steps.flatMap((flowStep) => [
+    flowStep.image_url,
+    flowStep.translated_image_url,
+  ]);
+  const signedImageUrls = await getScreenshotSignedUrls(
+    supabase,
+    [...fullImagePaths, ...thumbnailPaths],
+  );
+
   const stepThumbnailUrls = Object.fromEntries(
-    await Promise.all(
-      (flowSteps ?? []).map(async (flowStep) => [
-        flowStep.id,
-        await getScreenshotSignedUrl(
-          supabase,
-          stepPreviewImagePath(flowStep),
-        ),
-      ]),
-    ),
+    steps.map((flowStep) => {
+      const path = stepPreviewImagePath(flowStep);
+      return [flowStep.id, signedImageUrls[path] ?? null];
+    }),
   );
 
-  const presentationImages = Object.fromEntries(
-    await Promise.all(
-      (flowSteps ?? []).map(async (flowStep) => {
-        const original = flowStep.image_url
-          ? await getScreenshotSignedUrl(supabase, flowStep.image_url)
-          : null;
-        const translated = flowStep.translated_image_url
-          ? await getScreenshotSignedUrl(supabase, flowStep.translated_image_url)
-          : null;
-
-        return [flowStep.id, { original, translated }];
-      }),
-    ),
+  const stepImageUrls = Object.fromEntries(
+    steps.map((flowStep) => [
+      flowStep.id,
+      {
+        original: signedImageUrls[flowStep.image_url] ?? null,
+        translated: flowStep.translated_image_url
+          ? signedImageUrls[flowStep.translated_image_url] ?? null
+          : null,
+      },
+    ]),
   );
 
+  const stepIds = steps.map((flowStep) => flowStep.id);
   const { data: comments, error: commentsError } = await supabase
     .from("comments")
     .select("*")
-    .eq("step_id", stepId)
+    .in("step_id", stepIds.length > 0 ? stepIds : [stepId])
     .order("created_at", { ascending: true });
 
   if (commentsError) {
     throw new Error(commentsError.message);
   }
+
+  const commentsByStepId: Record<string, Comment[]> = Object.fromEntries(
+    steps.map((flowStep) => [flowStep.id, []]),
+  );
+  (comments ?? []).forEach((comment) => {
+    commentsByStepId[comment.step_id] ??= [];
+    commentsByStepId[comment.step_id].push(comment);
+  });
 
   const authorEmails = Object.fromEntries(
     (comments ?? []).map((comment) => [
@@ -106,63 +108,16 @@ export default async function StepPage({ params }: StepPageProps) {
   return (
     <FlowUploadProvider flowId={flow.id}>
       <StepRealtimeListener flowId={flow.id}>
-        <div className="flex flex-col gap-8">
-          <section className="flex flex-col gap-4">
-            <PageBreadcrumb
-              items={[
-                { label: "Dashboard", href: "/dashboard" },
-                { label: project.name, href: `/projects/${project.id}` },
-                { label: flow.name, href: `/flows/${flow.id}` },
-                { label: step.title || "Screen" },
-              ]}
-            />
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <StepEditableHeader
-                stepId={stepId}
-                title={step.title}
-                summary={step.summary}
-              />
-              <div className="flex flex-wrap items-center gap-2">
-                <StepStatusBadge status={step.status} />
-                <DeleteStepButton
-                  stepId={stepId}
-                  flowId={flow.id}
-                  stepTitle={step.title}
-                />
-              </div>
-            </div>
-            {step.status === "failed" && step.error_message ? (
-              <div className="flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-destructive">{step.error_message}</p>
-                <RetryStepButton stepId={stepId} />
-              </div>
-            ) : null}
-          </section>
-
-          <StepNavigation
-            steps={flowSteps ?? []}
-            currentStepId={stepId}
-            flowId={flow.id}
-            thumbnailUrls={stepThumbnailUrls}
-          />
-
-          <StepView
-            stepId={stepId}
-            step={{
-              title: step.title,
-              summary: step.summary,
-              status: step.status,
-              target_language: step.target_language,
-              error_message: step.error_message,
-            }}
-            flowSteps={flowSteps ?? []}
-            originalImageUrl={originalImageUrl}
-            translatedImageUrl={translatedImageUrl}
-            presentationImages={presentationImages}
-            initialComments={comments ?? []}
-            authorEmails={authorEmails}
-          />
-        </div>
+        <FlowStepWorkspace
+          initialStepId={stepId}
+          project={project}
+          flow={flow}
+          steps={steps}
+          thumbnailUrls={stepThumbnailUrls}
+          imageUrls={stepImageUrls}
+          commentsByStepId={commentsByStepId}
+          authorEmails={authorEmails}
+        />
       </StepRealtimeListener>
     </FlowUploadProvider>
   );

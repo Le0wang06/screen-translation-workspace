@@ -1,12 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
 import type { Step } from "@/lib/db/types";
+import { preloadBrowserImages } from "@/lib/preload-image";
 import { cn } from "@/lib/utils";
 
 type PresentationModeProps = {
@@ -52,6 +52,16 @@ export function PresentationMode({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [goNext, goPrev, onClose]);
 
+  useEffect(() => {
+    for (const stepIndex of [index - 1, index, index + 1]) {
+      const nearbyStep = steps[stepIndex];
+      if (!nearbyStep) continue;
+
+      const nearbyUrls = imageUrls[nearbyStep.id];
+      preloadBrowserImages([nearbyUrls?.translated, nearbyUrls?.original]);
+    }
+  }, [imageUrls, index, steps]);
+
   if (!step) return null;
 
   return (
@@ -82,12 +92,13 @@ export function PresentationMode({
           >
             <ChevronRight className="size-4" aria-hidden />
           </button>
-          <Link
-            href={`/steps/${step.id}`}
+          <button
+            type="button"
             className={cn(buttonVariants({ variant: "secondary", size: "sm" }))}
+            onClick={onClose}
           >
             Exit
-          </Link>
+          </button>
           <button
             type="button"
             className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }))}
