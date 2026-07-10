@@ -5,7 +5,7 @@ import { FlowUploadProvider } from "@/components/steps/flow-upload-provider";
 import { StepRealtimeListener } from "@/components/steps/step-realtime-listener";
 import { PageBreadcrumb } from "@/components/page-breadcrumb";
 import { createClient } from "@/lib/supabase/server";
-import { getScreenshotSignedUrl } from "@/lib/storage/signed-url";
+import { getScreenshotSignedUrls } from "@/lib/storage/signed-url";
 import { stepPreviewImagePath } from "@/lib/steps/display-image";
 
 type FlowPageProps = {
@@ -43,13 +43,16 @@ export default async function FlowPage({ params }: FlowPageProps) {
     throw new Error(stepsError.message);
   }
 
+  const thumbnailPaths = (steps ?? []).map((step) => stepPreviewImagePath(step));
+  const signedThumbnailUrls = await getScreenshotSignedUrls(
+    supabase,
+    thumbnailPaths,
+  );
   const thumbnailUrls = Object.fromEntries(
-    await Promise.all(
-      (steps ?? []).map(async (step) => [
-        step.id,
-        await getScreenshotSignedUrl(supabase, stepPreviewImagePath(step)),
-      ]),
-    ),
+    (steps ?? []).map((step) => {
+      const path = stepPreviewImagePath(step);
+      return [step.id, signedThumbnailUrls[path] ?? null];
+    }),
   );
 
   return (

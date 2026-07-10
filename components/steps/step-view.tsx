@@ -178,6 +178,7 @@ export function StepView({
       )}
 
       <StepComments
+        key={stepId}
         stepId={stepId}
         initialComments={initialComments}
         authorEmails={authorEmails}
@@ -235,7 +236,10 @@ function ScreenCard({
             <img
               src={imageUrl}
               alt={alt}
-              className="block h-auto w-full animate-in fade-in duration-500"
+              className="block h-auto w-full"
+              decoding="async"
+              fetchPriority="high"
+              loading="eager"
             />
           </div>
         ) : (

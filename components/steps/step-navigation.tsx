@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
 import { StepFilmstrip } from "@/components/steps/step-filmstrip";
@@ -16,6 +16,7 @@ type StepNavigationProps = {
   currentStepId: string;
   flowId: string;
   thumbnailUrls: Record<string, string | null>;
+  onStepSelect?: (stepId: string) => void;
 };
 
 export function StepNavigation({
@@ -23,6 +24,7 @@ export function StepNavigation({
   currentStepId,
   flowId,
   thumbnailUrls,
+  onStepSelect,
 }: StepNavigationProps) {
   const router = useRouter();
   const { pickFile, pending } = useFlowUpload();
@@ -32,6 +34,16 @@ export function StepNavigation({
     currentIndex >= 0 && currentIndex < steps.length - 1
       ? steps[currentIndex + 1]
       : null;
+  const goToStep = useCallback(
+    (targetStepId: string) => {
+      if (onStepSelect) {
+        onStepSelect(targetStepId);
+      } else {
+        router.push(`/steps/${targetStepId}`);
+      }
+    },
+    [onStepSelect, router],
+  );
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -44,18 +56,18 @@ export function StepNavigation({
 
       if (event.key === "ArrowLeft" && prevStep) {
         event.preventDefault();
-        router.push(`/steps/${prevStep.id}`);
+        goToStep(prevStep.id);
       }
 
       if (event.key === "ArrowRight" && nextStep) {
         event.preventDefault();
-        router.push(`/steps/${nextStep.id}`);
+        goToStep(nextStep.id);
       }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [nextStep, prevStep, router]);
+  }, [goToStep, nextStep, prevStep]);
 
   if (steps.length <= 1) {
     return (
@@ -96,13 +108,26 @@ export function StepNavigation({
             Add screen
           </Button>
           {prevStep ? (
-            <Link
-              href={`/steps/${prevStep.id}`}
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1")}
-            >
-              <ChevronLeft className="size-4" aria-hidden />
-              <span className="hidden sm:inline">Previous</span>
-            </Link>
+            onStepSelect ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={() => goToStep(prevStep.id)}
+              >
+                <ChevronLeft className="size-4" aria-hidden />
+                <span className="hidden sm:inline">Previous</span>
+              </Button>
+            ) : (
+              <Link
+                href={`/steps/${prevStep.id}`}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1")}
+              >
+                <ChevronLeft className="size-4" aria-hidden />
+                <span className="hidden sm:inline">Previous</span>
+              </Link>
+            )
           ) : (
             <Button variant="outline" size="sm" className="gap-1" disabled>
               <ChevronLeft className="size-4" aria-hidden />
@@ -110,13 +135,26 @@ export function StepNavigation({
             </Button>
           )}
           {nextStep ? (
-            <Link
-              href={`/steps/${nextStep.id}`}
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1")}
-            >
-              <span className="hidden sm:inline">Next</span>
-              <ChevronRight className="size-4" aria-hidden />
-            </Link>
+            onStepSelect ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={() => goToStep(nextStep.id)}
+              >
+                <span className="hidden sm:inline">Next</span>
+                <ChevronRight className="size-4" aria-hidden />
+              </Button>
+            ) : (
+              <Link
+                href={`/steps/${nextStep.id}`}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1")}
+              >
+                <span className="hidden sm:inline">Next</span>
+                <ChevronRight className="size-4" aria-hidden />
+              </Link>
+            )
           ) : (
             <Button variant="outline" size="sm" className="gap-1" disabled>
               <span className="hidden sm:inline">Next</span>
@@ -131,6 +169,7 @@ export function StepNavigation({
         thumbnailUrls={thumbnailUrls}
         currentStepId={currentStepId}
         flowId={flowId}
+        onStepSelect={onStepSelect}
       />
 
       <p className="text-xs text-muted-foreground">

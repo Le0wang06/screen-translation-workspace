@@ -1,7 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Send } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
@@ -40,15 +39,23 @@ export function StepComments({
   initialComments,
   authorEmails,
 }: StepCommentsProps) {
-  const router = useRouter();
+  const [comments, setComments] = useState(initialComments);
   const [body, setBody] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const refreshComments = useCallback(async () => {
+    const response = await fetch(`/api/steps/${stepId}/comments`);
+    if (!response.ok) return;
+
+    const payload = (await response.json()) as { comments?: Comment[] };
+    setComments(payload.comments ?? []);
+  }, [stepId]);
+
   useEffect(() => {
     const supabase = createClient();
     const refresh = debounce(() => {
-      router.refresh();
+      void refreshComments();
     }, 350);
 
     const channel = supabase
@@ -71,7 +78,7 @@ export function StepComments({
       refresh.cancel();
       void supabase.removeChannel(channel);
     };
-  }, [router, stepId]);
+  }, [refreshComments, stepId]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -88,7 +95,10 @@ export function StepComments({
         body: JSON.stringify({ body: trimmed }),
       });
 
-      const payload = (await response.json()) as { error?: string };
+      const payload = (await response.json()) as {
+        comment?: Comment;
+        error?: string;
+      };
 
       if (!response.ok) {
         setError(payload.error ?? "Failed to post comment.");
@@ -96,7 +106,10 @@ export function StepComments({
       }
 
       setBody("");
-      router.refresh();
+      const newComment = payload.comment;
+      if (newComment) {
+        setComments((current) => [...current, newComment]);
+      }
     } catch {
       setError("Failed to post comment.");
     } finally {
@@ -109,15 +122,15 @@ export function StepComments({
       <CardHeader className="border-b border-border/60 bg-muted/20">
         <CardTitle className="text-base">Comments</CardTitle>
         <CardDescription>
-          {initialComments.length === 0
+          {comments.length === 0
             ? "Leave feedback for your team on this screen."
-            : `${initialComments.length} comment${initialComments.length === 1 ? "" : "s"}`}
+            : `${comments.length} comment${comments.length === 1 ? "" : "s"}`}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 p-4 sm:p-6">
-        {initialComments.length > 0 ? (
+        {comments.length > 0 ? (
           <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
-            {initialComments.map((comment) => (
+            {comments.map((comment) => (
               <li key={comment.id} className="space-y-1 px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">
