@@ -183,7 +183,8 @@ export function StepNavigation({
         <kbd className="rounded border px-1">←</kbd>{" "}
         <kbd className="rounded border px-1">→</kbd>,{" "}
         <kbd className="rounded border px-1">P</kbd> 演示，{" "}
-        <kbd className="rounded border px-1">C</kbd> 对比，或直接添加新屏幕。
+        <kbd className="rounded border px-1">C</kbd> 对比，{" "}
+        <kbd className="rounded border px-1">A</kbd> 协作批注，或直接添加新屏幕。
       </p>
     </section>
   );

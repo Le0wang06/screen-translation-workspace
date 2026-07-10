@@ -50,6 +50,7 @@ export default async function StepPage({ params }: StepPageProps) {
   const fullImagePaths = steps.flatMap((flowStep) => [
     flowStep.image_url,
     flowStep.translated_image_url,
+    flowStep.annotated_image_url,
   ]);
   const signedImageUrls = await getScreenshotSignedUrls(
     supabase,
@@ -73,6 +74,14 @@ export default async function StepPage({ params }: StepPageProps) {
       },
     ]),
   );
+  const annotatedImageUrls = Object.fromEntries(
+    steps.map((flowStep) => [
+      flowStep.id,
+      flowStep.annotated_image_url
+        ? signedImageUrls[flowStep.annotated_image_url] ?? null
+        : null,
+    ]),
+  );
 
   return (
     <FlowUploadProvider flowId={flow.id}>
@@ -84,6 +93,7 @@ export default async function StepPage({ params }: StepPageProps) {
           steps={steps}
           thumbnailUrls={stepThumbnailUrls}
           imageUrls={stepImageUrls}
+          annotatedImageUrls={annotatedImageUrls}
         />
       </StepRealtimeListener>
     </FlowUploadProvider>
