@@ -167,6 +167,8 @@ export type Database = {
       }
       steps: {
         Row: {
+          annotated_image_url: string | null
+          annotation_document: Json | null
           created_at: string
           error_message: string | null
           flow_id: string
@@ -183,6 +185,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          annotated_image_url?: string | null
+          annotation_document?: Json | null
           created_at?: string
           error_message?: string | null
           flow_id: string
@@ -199,6 +203,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          annotated_image_url?: string | null
+          annotation_document?: Json | null
           created_at?: string
           error_message?: string | null
           flow_id?: string

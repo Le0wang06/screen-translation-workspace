@@ -131,9 +131,11 @@ export async function DELETE(_request: Request, context: RouteContext) {
     return notFound("屏幕不存在。");
   }
 
-  const pathsToRemove = [step.image_url, step.translated_image_url].filter(
-    (path): path is string => Boolean(path),
-  );
+  const pathsToRemove = [
+    step.image_url,
+    step.translated_image_url,
+    step.annotated_image_url,
+  ].filter((path): path is string => Boolean(path));
 
   if (pathsToRemove.length > 0) {
     const { error: storageError } = await supabase.storage

@@ -20,6 +20,16 @@ export function localizedScreenshotStoragePath(
   return `${projectId}/${flowId}/${stepId}-localized.${safeExtension}`;
 }
 
+export function annotatedScreenshotStoragePath(
+  projectId: string,
+  flowId: string,
+  stepId: string,
+  extension = "png",
+) {
+  const safeExtension = extension.replace(/^\./, "").toLowerCase() || "png";
+  return `${projectId}/${flowId}/${stepId}-annotated.${safeExtension}`;
+}
+
 export function parseScreenshotStoragePath(imagePath: string) {
   const [projectId, flowId, filename] = imagePath.split("/");
   const stepId = filename?.replace(/\.[^.]+$/, "") ?? "";

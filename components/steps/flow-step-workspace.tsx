@@ -11,6 +11,9 @@ import { StepStatusBadge } from "@/components/steps/step-status-badge";
 import { StepView } from "@/components/steps/step-view";
 import type { Step } from "@/lib/db/types";
 import { preloadBrowserImages } from "@/lib/preload-image";
+import type { TLStoreSnapshot } from "tldraw";
+
+type StepViewAnnotationDocument = TLStoreSnapshot;
 
 type StepImages = {
   original: string | null;
@@ -30,6 +33,7 @@ type FlowStepWorkspaceProps = {
   steps: Step[];
   thumbnailUrls: Record<string, string | null>;
   imageUrls: Record<string, StepImages>;
+  annotatedImageUrls?: Record<string, string | null>;
 };
 
 function stepIdFromPath(pathname: string) {
@@ -44,6 +48,7 @@ export function FlowStepWorkspace({
   steps,
   thumbnailUrls,
   imageUrls,
+  annotatedImageUrls = {},
 }: FlowStepWorkspaceProps) {
   const stepIds = useMemo(() => new Set(steps.map((step) => step.id)), [steps]);
   const fallbackStepId = steps[0]?.id ?? initialStepId;
@@ -156,6 +161,7 @@ export function FlowStepWorkspace({
       />
 
       <StepView
+        key={currentStep.id}
         stepId={currentStep.id}
         step={{
           title: currentStep.title,
@@ -167,6 +173,11 @@ export function FlowStepWorkspace({
         flowSteps={steps}
         originalImageUrl={currentImages?.original ?? null}
         translatedImageUrl={currentImages?.translated ?? null}
+        annotatedImageUrl={annotatedImageUrls[currentStep.id] ?? null}
+        annotationDocument={
+          (currentStep.annotation_document as unknown as StepViewAnnotationDocument) ??
+          null
+        }
         presentationImages={imageUrls}
       />
     </div>
